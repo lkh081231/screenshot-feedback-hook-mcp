@@ -22,21 +22,21 @@ Agent 写前端、画 EasyEDA/CAD 工程图时，没有视觉反馈就只能猜�
 零安装运行（需要 [uv](https://docs.astral.sh/uv/)）：
 
 ```bash
-# MCP server（注意 --from 写法，uvx 按包名解析）
-uvx --from agent-eye agent-eye-mcp
+# MCP server（包名同名入口，零参数直接起）
+uvx screenshot-feedback-hook-mcp
 
-# CLI 截图
-uvx agent-eye capture --monitor 0 --out shot.jpg
+# CLI 截图（uvx 按包名解析，CLI 入口要加 --from）
+uvx --from screenshot-feedback-hook-mcp agent-eye capture --monitor 0 --out shot.jpg
 ```
 
-或常驻安装：`pipx install agent-eye` / `uv tool install agent-eye`。
+或常驻安装：`pipx install screenshot-feedback-hook-mcp` / `uv tool install screenshot-feedback-hook-mcp`（之后直接用 `agent-eye` / `agent-eye-mcp` 命令）。
 
 ## 接入 MCP（推荐起点）
 
 Claude Code 一行：
 
 ```bash
-claude mcp add agent-eye -- uvx --from agent-eye agent-eye-mcp
+claude mcp add agent-eye -- uvx screenshot-feedback-hook-mcp
 ```
 
 或任意 MCP 客户端（Cursor / Cline / Windsurf...）的 mcp.json：
@@ -46,7 +46,7 @@ claude mcp add agent-eye -- uvx --from agent-eye agent-eye-mcp
   "mcpServers": {
     "agent-eye": {
       "command": "uvx",
-      "args": ["--from", "agent-eye", "agent-eye-mcp"]
+      "args": ["screenshot-feedback-hook-mcp"]
     }
   }
 }
@@ -68,7 +68,7 @@ claude mcp add agent-eye -- uvx --from agent-eye agent-eye-mcp
         "hooks": [
           {
             "type": "command",
-            "command": "uvx agent-eye capture --delay 1 --hook-output stop"
+            "command": "uvx --from screenshot-feedback-hook-mcp agent-eye capture --delay 1 --hook-output stop"
           }
         ]
       }

@@ -2,7 +2,7 @@
   "mcpServers": {
     "agent-eye": {
       "command": "uvx",
-      "args": ["--from", "agent-eye", "agent-eye-mcp"]
+      "args": ["screenshot-feedback-hook-mcp"]
     }
   }
 }

@@ -41,7 +41,9 @@ uv run agent-eye-mcp                              # 启动 MCP server
 uv run pytest                                     # 跑测试
 ```
 
-零安装运行（发布后）：`uvx agent-eye capture ...`；MCP 须写 `uvx --from agent-eye agent-eye-mcp`（uvx 按**包名**解析，直接 `uvx agent-eye-mcp` 会找不到包）。
+零安装运行（PyPI 分发名 = **screenshot-feedback-hook-mcp**，因 agent-eye 被相似度规则拒绝）：
+- MCP：`uvx screenshot-feedback-hook-mcp`（包内有同名入口脚本，零参数直接起）
+- CLI：`uvx --from screenshot-feedback-hook-mcp agent-eye capture ...`（uvx 按**包名**解析，CLI 入口须加 --from）
 
 ## 关键约定与坑（务必遵守）
 

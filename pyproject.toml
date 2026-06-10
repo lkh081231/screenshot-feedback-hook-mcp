@@ -1,5 +1,5 @@
 [project]
-name = "agent-eye"
+name = "screenshot-feedback-hook-mcp"
 version = "0.1.0"
 description = "Screenshot feedback for coding agents — let your agent SEE what it builds (MCP server + Claude Code hook)"
 readme = "README.md"
@@ -24,9 +24,11 @@ dependencies = [
 [project.scripts]
 agent-eye = "agent_eye.cli:main"
 agent-eye-mcp = "agent_eye.server:main"
+# 与分发名同名的别名，让 `uvx screenshot-feedback-hook-mcp` 零参数直接起 MCP server
+screenshot-feedback-hook-mcp = "agent_eye.server:main"
 
 [project.urls]
-Repository = "https://github.com/lkh081231/agent-eye"
+Repository = "https://github.com/lkh081231/screenshot-feedback-hook-mcp"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
