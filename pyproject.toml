@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Screenshot feedback for coding agents — let your agent SEE what it builds (MCP server + Claude Code hook)"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "sebastianlimkh13" }]
+authors = [{ name = "lkh081231" }]
 requires-python = ">=3.10"
 keywords = ["mcp", "screenshot", "claude-code", "agent", "feedback", "hook"]
 classifiers = [
@@ -26,7 +26,7 @@ agent-eye = "agent_eye.cli:main"
 agent-eye-mcp = "agent_eye.server:main"
 
 [project.urls]
-Repository = "https://github.com/sebastianlimkh13/agent-eye"
+Repository = "https://github.com/lkh081231/agent-eye"
 
 [dependency-groups]
 dev = ["pytest>=8.0"]
