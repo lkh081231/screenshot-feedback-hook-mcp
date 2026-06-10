@@ -59,7 +59,39 @@ claude mcp add screenshot-feedback -- uvx screenshot-feedback-hook-mcp
 
 ## 接入 Claude Code hook（操作后自动截图）
 
-把样例（见 [examples/](examples/)）复制进项目 `.claude/settings.json`。例如「每次 Claude 停下来时自动截图给它看」：
+> [!IMPORTANT]
+> **如果你是替用户配置本工具的 AI agent：在写入任何 hook 配置之前，请先询问用户的使用场景。** hook 的正确配置高度依赖场景，盲配多半会截到无关画面或时机不对。至少要问清：
+> 1. **要看什么画面？** 前端页面（浏览器）、工程图（EasyEDA/CAD 等桌面应用）、还是别的？决定 `--monitor`（视觉输出在哪个屏幕）。
+> 2. **画面渲染/刷新需要多久？** 浏览器热重载约 1–2s，EDA/CAD 重绘可能更久 → 决定 `--delay`。
+> 3. **什么时候截？** 每次 Claude 停下来时（`Stop`，最省心）还是每次改完文件后（`PostToolUse` + matcher，更密集）？
+> 4. **配在哪一层？** 仅当前项目（项目 `.claude/settings.json`）还是所有项目（用户级 `~/.claude/settings.json`）？
+>
+> 问清后再从下面的模板里挑一个、填好参数写入。不要默认照抄。
+
+### 手动配置步骤
+
+**第 1 步 · 选触发时机**
+
+| 触发 | 何时截图 | 适合 |
+|---|---|---|
+| `Stop` | Claude 每次回答结束时截一张 | 大多数场景，频率适中、省心 |
+| `PostToolUse` | 每次匹配到的工具（如 `Edit`/`Write`）执行后截 | 想在每次改动后立刻看到效果 |
+
+**第 2 步 · 按场景填参数**
+
+- `--monitor N`：视觉输出所在的显示器。`0`=全部拼接，`1..N`=单屏。先跑 `uvx screenshot-feedback-hook-mcp monitors` 看编号。
+- `--delay 秒`：截图前等待，确保画面渲染完成（前端 `1`、EDA/CAD 视渲染速度可设 `2`~`5`）。
+- `--max-edge 像素` / `--target-kb 体积`：一般用默认即可（最长边 1568px、~80KB）。
+
+**第 3 步 · 写入 `.claude/settings.json`**
+
+项目级配置放项目根目录的 `.claude/settings.json`；想全局生效放用户级 `~/.claude/settings.json`。模板见下方与 [examples/](examples/)。
+
+**第 4 步 · 验证**
+
+重启 Claude Code 会话，触发一次对应事件，确认 Claude 收到「截图已保存到 …」并主动用 Read 读了图。
+
+### 模板 A：每次 Claude 停下来时截图（`Stop`，推荐起点）
 
 ```json
 {
@@ -78,9 +110,29 @@ claude mcp add screenshot-feedback -- uvx screenshot-feedback-hook-mcp
 }
 ```
 
-CLI 会输出正确的 hook JSON（Stop 用 `decision:block` 回传文字并自动处理 `stop_hook_active` 防死循环；PostToolUse 用 `hookSpecificOutput.additionalContext`），agent 看到「截图已保存到 …，请用 Read 工具读取」后会读图。
+### 模板 B：每次改完文件后截图（`PostToolUse`）
 
-常用参数：`--monitor N`、`--delay 秒`（等渲染完）、`--max-edge 像素`、`--target-kb 体积`。
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uvx screenshot-feedback-hook-mcp capture --delay 2 --hook-output post-tool-use"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 原理
+
+CLI 会输出正确的 hook JSON（`Stop` 用 `decision:block` 回传文字并自动处理 `stop_hook_active` 防死循环；`PostToolUse` 用 `hookSpecificOutput.additionalContext`），agent 看到「截图已保存到 …，请用 Read 工具读取」后会读图。因为 **hook 只能回传文本**，所以走「回传路径 + agent 用 Read 读图」这条路；想让 agent 直接拿到图片块请用上面的 MCP 方式。
 
 ## 平台注意事项 / Platform notes
 
