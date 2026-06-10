@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# 测试/工具产物
+.pytest_cache/
+.ruff_cache/
+shot*.png
+shot*.jpg
+*.tmp
+
+# IDE / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Claude 本地配置（个人级，不入库）
+.claude/settings.local.json
