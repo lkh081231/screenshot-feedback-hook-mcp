@@ -4,9 +4,7 @@
 
 Let your coding agent **see what it builds** — a cross-platform (Windows / Linux / macOS) screenshot-feedback tool for AI agents, shipped as an MCP server plus a Claude Code hook helper.
 
-> [!TIP]
-> **Engineers and non-programmers: just let your AI agent install and configure this for you — don't need to hand-edit JSON.**
-> Tell Claude Code something like "install and set up screenshot-feedback-hook-mcp for me." Following the [hook setup](#claude-code-hook-auto-screenshot-after-an-action) guidance below, the agent will first ask about your use case (what you want to see, how long it takes to render, when to capture), then write the MCP + hook config for you. Prefer doing it yourself? See the manual steps below.
+
 
 ## Why
 
@@ -20,6 +18,10 @@ The technical reality: Claude Code **hooks can only return text**, while **MCP t
 | **Claude Code hook** | fires automatically after an action | hook returns the screenshot's absolute path; agent reads it with the Read tool |
 
 Images are downscaled by default (longest edge 1568px) and JPEG-compressed to a **byte budget** (~80KB), staying under Claude Code's ~25k-token limit on MCP output.
+
+> [!TIP]
+> **Engineers and non-programmers: just let your AI agent install and configure this for you — don't need to hand-edit JSON.**
+> Tell Claude Code something like "install and set up screenshot-feedback-hook-mcp for me." Following the [hook setup](#claude-code-hook-auto-screenshot-after-an-action) guidance below, the agent will first ask about your use case (what you want to see, how long it takes to render, when to capture), then write the MCP + hook config for you. Prefer doing it yourself? See the manual steps below.
 
 ## Install
 

@@ -6,10 +6,6 @@
 
 Let your coding agent **see what it builds**: a cross-platform (Windows / Linux / macOS) screenshot-feedback tool for AI agents, shipped as an MCP server plus a Claude Code hook helper.
 
-> [!TIP]
-> **推荐工程师 / 非程序员用户：直接让 AI agent 替你安装配置，没必要手动编辑 JSON。**
-> 在 Claude Code 里说一句「帮我安装并配置 screenshot-feedback-hook-mcp」，agent 会按下文 [hook 配置](#接入-claude-code-hook操作后自动截图) 的提示先问清你的使用场景（看什么画面、渲染多久、何时截图），再替你写好 MCP + hook 配置。想自己动手的见下面的手动步骤。
-
 ## 为什么需要它 / Why
 
 Agent 写前端、画 EasyEDA/CAD 工程图时，没有视觉反馈就只能猜。给它一个「截图 → 看图 → 自我纠正」的回路，产出质量立刻不一样。
@@ -22,6 +18,10 @@ Agent 写前端、画 EasyEDA/CAD 工程图时，没有视觉反馈就只能猜�
 | **Claude Code hook** | 某操作后自动触发 | hook 回传截图的绝对路径，agent 用 Read 工具读图 |
 
 图片默认降采样（最长边 1568px）并按**字节预算**（~80KB）迭代压缩 JPEG，避开 Claude Code 对 MCP 输出 ~25k token 的限制。
+
+> [!TIP]
+> **推荐工程师 / 非程序员用户：直接让 AI agent 替你安装配置，没必要手动编辑 JSON。**
+> 在 Claude Code 里说一句「帮我安装并配置 screenshot-feedback-hook-mcp」，agent 会按下文 [hook 配置](#接入-claude-code-hook操作后自动截图) 的提示先问清你的使用场景（看什么画面、渲染多久、何时截图），再替你写好 MCP + hook 配置。想自己动手的见下面的手动步骤。
 
 ## 安装 / Install
 
