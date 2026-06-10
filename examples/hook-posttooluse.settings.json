@@ -1,0 +1,16 @@
+{
+  "//": "复制 hooks 段到项目 .claude/settings.json —— Claude 每次 Edit/Write 改完文件后自动截图。按需调整 matcher（如只匹配 Bash 跑构建命令后截图）和 --delay（等热重载/渲染完成）。",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uvx agent-eye capture --delay 2 --hook-output post-tool-use"
+          }
+        ]
+      }
+    ]
+  }
+}

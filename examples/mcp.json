@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agent-eye": {
+      "command": "uvx",
+      "args": ["--from", "agent-eye", "agent-eye-mcp"]
+    }
+  }
+}

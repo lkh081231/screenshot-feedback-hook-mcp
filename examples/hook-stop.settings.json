@@ -1,0 +1,15 @@
+{
+  "//": "复制 hooks 段到项目 .claude/settings.json —— Claude 每次停下来时自动截图给它看。CLI 自动处理 stop_hook_active 防死循环。",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uvx agent-eye capture --delay 1 --hook-output stop"
+          }
+        ]
+      }
+    ]
+  }
+}
