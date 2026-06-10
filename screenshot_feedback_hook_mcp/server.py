@@ -11,9 +11,9 @@ import sys
 
 from mcp.server.fastmcp import FastMCP, Image
 
-from agent_eye.core import capture, optimize, platform_check
+from screenshot_feedback_hook_mcp.core import capture, optimize, platform_check
 
-mcp = FastMCP("agent-eye")
+mcp = FastMCP("screenshot-feedback-hook-mcp")
 
 
 @mcp.tool()
@@ -43,7 +43,7 @@ def list_monitors() -> str:
 
 def main() -> None:
     if warning := platform_check.session_warning():
-        print(f"agent-eye-mcp: {warning}", file=sys.stderr)
+        print(f"screenshot-feedback-hook-mcp: {warning}", file=sys.stderr)
     mcp.run()
 
 

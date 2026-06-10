@@ -5,7 +5,7 @@ from io import BytesIO
 import pytest
 from PIL import Image
 
-from agent_eye.core import optimize
+from screenshot_feedback_hook_mcp.core import optimize
 
 
 def _noise_image(width: int, height: int) -> Image.Image:

@@ -1,4 +1,4 @@
-# agent-eye 👁
+# screenshot-feedback-hook-mcp 👁
 
 **让 coding agent 看到自己产出的真实画面** —— 跨平台截图反馈工具（MCP server + Claude Code hook 双层）。
 
@@ -8,7 +8,7 @@ Let your coding agent **see what it builds**: a cross-platform (Windows / Linux 
 
 Agent 写前端、画 EasyEDA/CAD 工程图时，没有视觉反馈就只能猜。给它一个「截图 → 看图 → 自我纠正」的回路，产出质量立刻不一样。
 
-技术现实：Claude Code 的 **hook 只能回传文本**，而 **MCP 工具可以回传原生图片**。所以 agent-eye 做成双层：
+技术现实：Claude Code 的 **hook 只能回传文本**，而 **MCP 工具可以回传原生图片**。所以本工具做成双层：
 
 | 层 | 触发方式 | 图片如何进入 agent 视野 |
 |---|---|---|
@@ -22,21 +22,22 @@ Agent 写前端、画 EasyEDA/CAD 工程图时，没有视觉反馈就只能猜�
 零安装运行（需要 [uv](https://docs.astral.sh/uv/)）：
 
 ```bash
-# MCP server（包名同名入口，零参数直接起）
+# MCP server（无参数 = MCP server）
 uvx screenshot-feedback-hook-mcp
 
-# CLI 截图（uvx 按包名解析，CLI 入口要加 --from）
-uvx --from screenshot-feedback-hook-mcp agent-eye capture --monitor 0 --out shot.jpg
+# CLI 截图（带子命令 = CLI）
+uvx screenshot-feedback-hook-mcp capture --monitor 0 --out shot.jpg
+uvx screenshot-feedback-hook-mcp monitors
 ```
 
-或常驻安装：`pipx install screenshot-feedback-hook-mcp` / `uv tool install screenshot-feedback-hook-mcp`（之后直接用 `agent-eye` / `agent-eye-mcp` 命令）。
+或常驻安装：`pipx install screenshot-feedback-hook-mcp` / `uv tool install screenshot-feedback-hook-mcp`。
 
 ## 接入 MCP（推荐起点）
 
 Claude Code 一行：
 
 ```bash
-claude mcp add agent-eye -- uvx screenshot-feedback-hook-mcp
+claude mcp add screenshot-feedback -- uvx screenshot-feedback-hook-mcp
 ```
 
 或任意 MCP 客户端（Cursor / Cline / Windsurf...）的 mcp.json：
@@ -44,7 +45,7 @@ claude mcp add agent-eye -- uvx screenshot-feedback-hook-mcp
 ```json
 {
   "mcpServers": {
-    "agent-eye": {
+    "screenshot-feedback": {
       "command": "uvx",
       "args": ["screenshot-feedback-hook-mcp"]
     }
@@ -68,7 +69,7 @@ claude mcp add agent-eye -- uvx screenshot-feedback-hook-mcp
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from screenshot-feedback-hook-mcp agent-eye capture --delay 1 --hook-output stop"
+            "command": "uvx screenshot-feedback-hook-mcp capture --delay 1 --hook-output stop"
           }
         ]
       }
@@ -99,8 +100,8 @@ CLI 会输出正确的 hook JSON（Stop 用 `decision:block` 回传文字并自�
 ```bash
 uv sync           # 安装依赖
 uv run pytest     # 测试
-uv run agent-eye capture --out shot.jpg
-uv run agent-eye-mcp
+uv run screenshot-feedback-hook-mcp capture --out shot.jpg   # CLI
+uv run screenshot-feedback-hook-mcp                          # MCP server
 ```
 
 MIT License.

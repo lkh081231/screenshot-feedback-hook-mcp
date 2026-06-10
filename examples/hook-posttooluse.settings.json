@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "uvx --from screenshot-feedback-hook-mcp agent-eye capture --delay 2 --hook-output post-tool-use"
+            "command": "uvx screenshot-feedback-hook-mcp capture --delay 2 --hook-output post-tool-use"
           }
         ]
       }

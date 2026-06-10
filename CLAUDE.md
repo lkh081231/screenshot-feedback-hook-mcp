@@ -4,7 +4,8 @@
 
 ## 项目是什么
 
-**agent-eye** —— 一个开源、跨平台（Windows / Linux / macOS）、低部署门槛的「截图反馈」工具，让 coding agent 在做前端设计、画工程图（EasyEDA/CAD）等任务时能**看到自己产出的真实画面**并据此自我纠正。
+**screenshot-feedback-hook-mcp** —— 一个开源、跨平台（Windows / Linux / macOS）、低部署门槛的「截图反馈」工具，让 coding agent 在做前端设计、画工程图（EasyEDA/CAD）等任务时能**看到自己产出的真实画面**并据此自我纠正。
+（曾用名 agent-eye，因 PyPI 相似度规则弃用；现在包名/命令名/分发名/仓库名统一为 screenshot-feedback-hook-mcp。）
 
 核心技术现实（设计前提，勿推翻）：
 - **Hook 只能回传文本**，无法直接把图片塞进上下文（feature request anthropics/claude-code#16592 未实现）。
@@ -21,29 +22,28 @@
 ## 目录结构（目标）
 
 ```
-agent_eye/
+screenshot_feedback_hook_mcp/
 ├── core/capture.py      # 截图核心：mss 抓帧 → Pillow bytes
 ├── core/optimize.py     # 字节预算导向：降采样(~1568px)+迭代降 JPEG 质量至 ≤~80KB
+├── core/platform_check.py  # macOS 权限/Wayland 检测提示
 ├── server.py            # MCP server（FastMCP，take_screenshot/list_monitors）
-├── cli.py               # CLI：agent-eye capture，供 hook 调用
+├── cli.py               # CLI + 统一入口 entry()：无参数=MCP server，带子命令=CLI
 └── __init__.py
 examples/                # hook 配置样例、MCP 配置样例
-tests/                   # optimize 单测 + capture 冒烟测试
-pyproject.toml           # uv 管理，[project.scripts] 暴露 agent-eye / agent-eye-mcp
+tests/                   # optimize 单测 + hook schema 单测 + capture 冒烟测试
+pyproject.toml           # uv 管理，[project.scripts] 只暴露 screenshot-feedback-hook-mcp
 ```
 
 ## 常用命令
 
 ```bash
-uv sync                                          # 安装依赖
-uv run agent-eye capture --monitor 0 --out shot.png   # 跑 CLI 截图
-uv run agent-eye-mcp                              # 启动 MCP server
-uv run pytest                                     # 跑测试
+uv sync                                                            # 安装依赖
+uv run screenshot-feedback-hook-mcp capture --monitor 0 --out shot.png  # 跑 CLI 截图
+uv run screenshot-feedback-hook-mcp                                # 启动 MCP server（无参数）
+uv run pytest                                                      # 跑测试
 ```
 
-零安装运行（PyPI 分发名 = **screenshot-feedback-hook-mcp**，因 agent-eye 被相似度规则拒绝）：
-- MCP：`uvx screenshot-feedback-hook-mcp`（包内有同名入口脚本，零参数直接起）
-- CLI：`uvx --from screenshot-feedback-hook-mcp agent-eye capture ...`（uvx 按**包名**解析，CLI 入口须加 --from）
+零安装运行：`uvx screenshot-feedback-hook-mcp`（MCP）/ `uvx screenshot-feedback-hook-mcp capture ...`（CLI）——单一入口按有无子命令分流，无需 --from。
 
 ## 关键约定与坑（务必遵守）
 

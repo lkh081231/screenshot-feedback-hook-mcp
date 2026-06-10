@@ -1,8 +1,12 @@
-"""CLI：`agent-eye capture` 截图存盘，供 Claude Code hook 调用。
+"""CLI：`screenshot-feedback-hook-mcp capture` 截图存盘，供 Claude Code hook 调用。
 
 hook 只能回传文本，所以这里只输出「绝对路径 + 让 agent 用 Read 读图」
 的指令；--hook-output 按事件输出对应的 hook JSON schema（两种事件字段
 不同，封装在这里避免用户手拼出错）。
+
+入口 entry() 同时承担 MCP server：不带子命令时直接以 MCP server 运行，
+这样 `uvx screenshot-feedback-hook-mcp` 即 MCP、加子命令即 CLI，单一
+包名覆盖两种用法。
 """
 
 from __future__ import annotations
@@ -15,12 +19,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from agent_eye.core import capture, optimize, platform_check
+from screenshot_feedback_hook_mcp.core import capture, optimize, platform_check
 
 
 def _default_out() -> Path:
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    out_dir = Path(tempfile.gettempdir()) / "agent-eye"
+    out_dir = Path(tempfile.gettempdir()) / "screenshot-feedback-hook-mcp"
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / f"shot-{stamp}.jpg"
 
@@ -68,7 +72,7 @@ def cmd_capture(args: argparse.Namespace) -> int:
     try:
         img = capture.grab(args.monitor)
     except Exception as exc:  # noqa: BLE001 — 截图失败原因五花八门，统一转成可读输出
-        msg = f"agent-eye 截图失败：{exc}"
+        msg = f"screenshot-feedback-hook-mcp 截图失败：{exc}"
         if warnings:
             msg += " | " + " | ".join(warnings)
         if hook_event:
@@ -110,7 +114,9 @@ def main(argv: list[str] | None = None) -> int:
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
 
-    parser = argparse.ArgumentParser(prog="agent-eye", description="给 coding agent 的截图反馈工具")
+    parser = argparse.ArgumentParser(
+        prog="screenshot-feedback-hook-mcp", description="给 coding agent 的截图反馈工具"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_cap = sub.add_parser("capture", help="截图存盘（hook 用）")
@@ -133,5 +139,15 @@ def main(argv: list[str] | None = None) -> int:
     return args.func(args)
 
 
+def entry() -> int:
+    """统一入口：不带参数 = MCP server，带子命令 = CLI。"""
+    if len(sys.argv) <= 1:
+        from screenshot_feedback_hook_mcp.server import main as server_main
+
+        server_main()
+        return 0
+    return main()
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(entry())

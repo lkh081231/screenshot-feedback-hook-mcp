@@ -2,7 +2,7 @@
 
 import json
 
-from agent_eye import cli
+from screenshot_feedback_hook_mcp import cli
 
 
 def test_post_tool_use_schema(capsys):

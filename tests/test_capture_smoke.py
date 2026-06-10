@@ -2,7 +2,7 @@
 
 import pytest
 
-from agent_eye.core import capture
+from screenshot_feedback_hook_mcp.core import capture
 
 
 def _has_display() -> bool:
