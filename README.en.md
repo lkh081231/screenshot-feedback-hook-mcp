@@ -5,7 +5,7 @@
 Let your coding agent **see what it builds** — a cross-platform (Windows / Linux / macOS) screenshot-feedback tool for AI agents, shipped as an MCP server plus a Claude Code hook helper.
 
 > [!TIP]
-> **Engineers and non-programmers: just let your AI agent install and configure this for you — don't hand-edit JSON.**
+> **Engineers and non-programmers: just let your AI agent install and configure this for you — don't need to hand-edit JSON.**
 > Tell Claude Code something like "install and set up screenshot-feedback-hook-mcp for me." Following the [hook setup](#claude-code-hook-auto-screenshot-after-an-action) guidance below, the agent will first ask about your use case (what you want to see, how long it takes to render, when to capture), then write the MCP + hook config for you. Prefer doing it yourself? See the manual steps below.
 
 ## Why
