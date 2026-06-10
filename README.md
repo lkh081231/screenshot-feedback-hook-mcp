@@ -1,8 +1,14 @@
 # screenshot-feedback-hook-mcp 👁
 
+**中文** | [English](README.en.md)
+
 **让 coding agent 看到自己产出的真实画面** —— 跨平台截图反馈工具（MCP server + Claude Code hook 双层）。
 
 Let your coding agent **see what it builds**: a cross-platform (Windows / Linux / macOS) screenshot-feedback tool for AI agents, shipped as an MCP server plus a Claude Code hook helper.
+
+> [!TIP]
+> **推荐工程师 / 非程序员用户：直接让 AI agent 替你安装配置，别手动编辑 JSON。**
+> 在 Claude Code 里说一句「帮我安装并配置 screenshot-feedback-hook-mcp」，agent 会按下文 [hook 配置](#接入-claude-code-hook操作后自动截图) 的提示先问清你的使用场景（看什么画面、渲染多久、何时截图），再替你写好 MCP + hook 配置。想自己动手的见下面的手动步骤。
 
 ## 为什么需要它 / Why
 
