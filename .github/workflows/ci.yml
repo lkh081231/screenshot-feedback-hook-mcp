@@ -17,3 +17,22 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
       - run: uv run pytest -v
+
+  dsh-plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dsh-plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dsh-plugin/package-lock.json
+      # 不加 --ignore-scripts：让 npm ci 跑一遍 prepare，顺带验证 git 安装那条路
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # 真实截图的集成测试默认跳过：CI 的无头容器没有桌面，mss 必然失败
+      - run: npm run build

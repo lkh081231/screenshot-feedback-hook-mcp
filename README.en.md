@@ -16,6 +16,7 @@ The technical reality: Claude Code **hooks can only return text**, while **MCP t
 |---|---|---|
 | **MCP server** | agent calls `take_screenshot` itself | tool returns a native image block directly (works across MCP clients) |
 | **Claude Code hook** | fires automatically after an action | hook returns the screenshot's absolute path; agent reads it with the Read tool |
+| **DeepSeek Harness plugin** | agent calls it, or it fires after a tool / at the end of a turn | the screenshot is committed to dsh's durable attachment store and enters the conversation as an image block — **the agent does nothing** |
 
 Images are downscaled by default (longest edge 1568px) and JPEG-compressed to a **byte budget** (~80KB), staying under Claude Code's ~25k-token limit on MCP output.
 
@@ -62,6 +63,22 @@ Or in any MCP client (Cursor / Cline / Windsurf...) via mcp.json:
 Tools:
 - `take_screenshot(monitor=0)` — capture the screen, returns the image directly. 0 = all monitors stitched, 1..N = a single monitor.
 - `list_monitors()` — list monitor indices / resolutions.
+
+## Connect to DeepSeek Harness (native dsh plugin)
+
+On [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), use the native plugin rather than the MCP route above: dsh has a durable image-attachment service, so the plugin can put the screenshot into the conversation as a real image block — **the agent does not have to call anything**.
+
+```sh
+dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
+dsh web
+```
+
+Requires dsh ≥ `v0.1.0-rc.8`, pnpm on PATH, the Python package ≥ 0.3.0, and **a model that accepts image input**.
+
+> [!IMPORTANT]
+> **DeepSeek's `deepseek-v4-flash` and `deepseek-v4-pro` are both text-only**, and the built-in `deepseek-official` route on rc.8 ships no vision model at all. With those, a screenshot never reaches the conversation (dsh rejects it before the request), so the plugin skips the capture and tells you how to switch: add an Anthropic/OpenAI-style catalog provider under Settings → Models and pick a vision model, or declare `input: [text, image]` for your custom provider's model.
+
+Tools and configuration (`monitor`, `delayMs`, the two automatic timings that ship disabled) are documented in [dsh-plugin/README.md](dsh-plugin/README.md).
 
 ## Claude Code hook (auto-screenshot after an action)
 

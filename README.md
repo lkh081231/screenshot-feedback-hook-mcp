@@ -16,6 +16,7 @@ Agent 写前端、画 EasyEDA/CAD 工程图时，没有视觉反馈就只能猜�
 |---|---|---|
 | **MCP server** | agent 主动调用 `take_screenshot` | 工具直接返回原生图片块（跨 MCP 客户端通用） |
 | **Claude Code hook** | 某操作后自动触发 | hook 回传截图的绝对路径，agent 用 Read 工具读图 |
+| **DeepSeek Harness 插件** | agent 主动调用，或操作后 / 轮次结束时自动触发 | 截图存进 dsh 的持久附件库，作为图片块直接进上下文，**agent 什么都不用做** |
 
 图片默认降采样（最长边 1568px）并按**字节预算**（~80KB）迭代压缩 JPEG，避开 Claude Code 对 MCP 输出 ~25k token 的限制。
 
@@ -62,6 +63,22 @@ claude mcp add screenshot-feedback -- uvx screenshot-feedback-hook-mcp
 工具：
 - `take_screenshot(monitor=0)` —— 截屏，直接返回图片。0=全部显示器拼接，1..N=单屏。
 - `list_monitors()` —— 列出显示器编号/分辨率。
+
+## 接入 DeepSeek Harness（dsh 原生插件）
+
+[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 用户请走原生插件，别走上面的 MCP：dsh 有持久图片附件服务，插件可以把截图直接变成图片块推进上下文，**agent 不需要主动调任何工具**。
+
+```sh
+dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
+dsh web
+```
+
+要求 dsh ≥ `v0.1.0-rc.8`、PATH 上有 pnpm、Python 包 ≥ 0.3.0，以及**一个支持图片输入的模型**。
+
+> [!IMPORTANT]
+> **DeepSeek 的 `deepseek-v4-flash` 和 `deepseek-v4-pro` 都是纯文本模型**，rc.8 的内置 `deepseek-official` 路由也没有自带任何视觉模型。用它们的话截图根本进不了上下文（dsh 会在发请求前拒掉），所以插件会跳过截图并告诉你怎么换：在「设置 → 模型」加一个 Anthropic / OpenAI 等 catalog provider 选视觉模型，或给自定义 provider 的模型声明 `input: [text, image]`。
+
+工具与配置（`monitor` / `delayMs` / 两个默认关闭的自动截图时机等）见 [dsh-plugin/README.zh.md](dsh-plugin/README.zh.md)。
 
 ## 接入 Claude Code hook（操作后自动截图）
 
