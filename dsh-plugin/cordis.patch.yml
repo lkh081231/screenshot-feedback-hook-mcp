@@ -1,0 +1,13 @@
+# 由 `dsh plugin add dsh-screenshot-feedback-hook-mcp` 装入 profile 后自动生效。
+# 默认只提供手动的 take_screenshot / list_monitors 工具；两个自动截图时机
+# 默认关闭，在自己 profile 的 cordis.patch.yml 里按 id `screenshot-feedback`
+# 覆盖本行即可打开（覆盖会替换整个 config，需要重述所有要用的键）。
+- insert:
+    - id: screenshot-feedback
+      name: dsh-screenshot-feedback-hook-mcp
+      config:
+        # 零安装：uvx 会按需拉起 PyPI 上的 screenshot-feedback-hook-mcp。
+        # 已经 pipx / uv tool install 过的，把 command 改成 screenshot-feedback-hook-mcp、args 清空。
+        command: uvx
+        args: ['screenshot-feedback-hook-mcp']
+        monitor: 0

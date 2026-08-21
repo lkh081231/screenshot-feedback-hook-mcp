@@ -21,3 +21,8 @@ Thumbs.db
 
 # Claude 本地配置（个人级，不入库）
 .claude/settings.local.json
+
+# dsh 插件
+dsh-plugin/node_modules/
+dsh-plugin/lib/
+dsh-plugin/*.tgz
