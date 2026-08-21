@@ -41,6 +41,11 @@ describe('parseCaptureJson', () => {
       .toThrow('uvx: command not found')
   })
 
+  it('names the upgrade when the installed CLI predates --json', () => {
+    const usage = 'usage: screenshot-feedback-hook-mcp [-h] {capture,monitors} ...\nscreenshot-feedback-hook-mcp: error: unrecognized arguments: --json'
+    expect(() => parseCaptureJson('', usage, 2)).toThrow(/older than 0\.3\.0/)
+  })
+
   it('reports unreadable output instead of throwing a raw SyntaxError', () => {
     expect(() => parseCaptureJson('not json at all', '', 0))
       .toThrow(/unreadable output/)

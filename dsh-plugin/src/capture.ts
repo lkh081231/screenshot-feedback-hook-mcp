@@ -37,6 +37,9 @@ interface CaptureJson {
   error?: string
 }
 
+/** 第一个带 `capture --json` 的 Python 包版本；更早的版本这个插件用不了。 */
+export const MIN_CLI_VERSION = '0.3.0'
+
 /** stdout 只装一行 JSON，64KB 绰绰有余。 */
 const STDOUT_CAP = 64 * 1024
 /** stderr 只作诊断尾巴。 */
@@ -108,6 +111,14 @@ export function parseCaptureJson(stdout: string, stderr: string, exitCode: numbe
   const trimmed = stdout.trim()
   if (trimmed.length === 0) {
     const detail = stderr.trim() || `exit code ${String(exitCode)}`
+    // 0.2.0 及更早的 CLI 没有 --json；点名升级比丢一段 argparse usage 有用得多
+    if (detail.includes('unrecognized arguments: --json')) {
+      throw new Error(
+        `the installed screenshot-feedback-hook-mcp is older than ${MIN_CLI_VERSION}, which is the first release with \`capture --json\`. `
+        + 'Upgrade it (`uv tool upgrade screenshot-feedback-hook-mcp`, `pipx upgrade screenshot-feedback-hook-mcp`, '
+        + 'or let `uvx` fetch the latest by clearing its cache) and try again.',
+      )
+    }
     throw new Error(`the screenshot command produced no output (${detail})`)
   }
   let parsed: CaptureJson
