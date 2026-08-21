@@ -39,6 +39,55 @@ git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
 ```
 
+## How it registers with dsh
+
+This package is a dsh **bundle** — an npm package that carries a configuration layer, so you never hand-write a patch. Its `package.json` declares what it contributes:
+
+```json
+{
+  "name": "dsh-screenshot-feedback-hook-mcp",
+  "main": "lib/index.js",
+  "files": ["lib", "cordis.patch.yml"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}
+```
+
+That `cordis.patch.yml` is the layer. It references the plugin module **by package name** — not by relative path, or Node could not resolve the installed code:
+
+```yaml
+- insert:
+    - id: screenshot-feedback
+      name: dsh-screenshot-feedback-hook-mcp
+      config:
+        command: uvx
+        args: ['screenshot-feedback-hook-mcp']
+        monitor: 0
+```
+
+`dsh plugin --profile <name> add ...` forwards to pnpm inside the profile directory, sees the `dsh.bundle` manifest, and appends the package to that profile's `dsh.profile.bundles`:
+
+```json
+{
+  "name": "dsh-profile-web",
+  "dependencies": { "dsh-screenshot-feedback-hook-mcp": "..." },
+  "dsh": { "profile": { "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-web-app",
+    "dsh-screenshot-feedback-hook-mcp"
+  ] } }
+}
+```
+
+Inspect the layer before booting anything:
+
+```sh
+dsh --profile web --dump-config   # shows a `# == dsh-screenshot-feedback-hook-mcp` layer with its id: screenshot-feedback row
+```
+
+To uninstall: `dsh plugin --profile web remove dsh-screenshot-feedback-hook-mcp` drops both the dependency and its layer.
+
+Layers compose in this order: each bundle's patch in `dsh.profile.bundles` order (`@deepseek-ai/dsh-base` first) → the profile's own `cordis.patch.yml` → the home-level `$DSH_HOME/cordis.patch.yml` → every `--patch` overlay. So **you can override this package's row from your own profile layer without touching the package**.
+
 ## Configuration
 
 The bundle inserts one plugin row with id `screenshot-feedback`. To change it, add a row with the same id to your profile's `$DSH_HOME/profiles/<name>/cordis.patch.yml`. **A later layer replaces the whole `config` value**, so restate every key you want, not only the changed one:

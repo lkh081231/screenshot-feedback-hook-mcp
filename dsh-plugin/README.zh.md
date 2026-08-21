@@ -39,9 +39,58 @@ git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
 ```
 
+## 它是怎么注册进 dsh 的
+
+本包是一个 dsh **组合包（bundle）** —— 一个附带配置层的 npm 包，不需要你手写任何 patch。它靠 `package.json` 里的 `dsh.bundle` manifest 声明自己贡献什么：
+
+```json
+{
+  "name": "dsh-screenshot-feedback-hook-mcp",
+  "main": "lib/index.js",
+  "files": ["lib", "cordis.patch.yml"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } }
+}
+```
+
+`cordis.patch.yml` 就是那一层，按**包名**引用插件模块（不是相对路径，否则 Node 解析不到已安装的代码）：
+
+```yaml
+- insert:
+    - id: screenshot-feedback
+      name: dsh-screenshot-feedback-hook-mcp
+      config:
+        command: uvx
+        args: ['screenshot-feedback-hook-mcp']
+        monitor: 0
+```
+
+`dsh plugin --profile <name> add ...` 会在 profile 目录里转发给 pnpm 装包，认出 `dsh.bundle` 后把包名追加进该 profile 的 `dsh.profile.bundles`：
+
+```json
+{
+  "name": "dsh-profile-web",
+  "dependencies": { "dsh-screenshot-feedback-hook-mcp": "..." },
+  "dsh": { "profile": { "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-web-app",
+    "dsh-screenshot-feedback-hook-mcp"
+  ] } }
+}
+```
+
+启动前先只验证这一层，不真的跑起来：
+
+```sh
+dsh --profile web --dump-config   # 应当出现 `# == dsh-screenshot-feedback-hook-mcp` 层与 id: screenshot-feedback 那一行
+```
+
+卸载：`dsh plugin --profile web remove dsh-screenshot-feedback-hook-mcp`，依赖和对应的层会一起消失。
+
+生效配置的层顺序是：各组合包的 patch（按 `dsh.profile.bundles` 顺序，`@deepseek-ai/dsh-base` 在最前）→ profile 自己的 `cordis.patch.yml` → home 级 `$DSH_HOME/cordis.patch.yml` → 每个 `--patch` overlay。所以**你可以在自己 profile 的层里覆盖本包的行，不用改这个包**。
+
 ## 配置
 
-组合包会插入一行 id 为 `screenshot-feedback` 的插件。要改它，在自己 profile 的 `$DSH_HOME/profiles/<name>/cordis.patch.yml` 里写一行同 id 的配置。**后应用的层会替换整个 `config`**，所以要重述所有你想要的键，而不是只写改动的那个：
+组合包插入的那一行 id 是 `screenshot-feedback`。要改它，在自己 profile 的 `$DSH_HOME/profiles/<name>/cordis.patch.yml` 里写一行同 id 的配置。**后应用的层会替换整个 `config`**，所以要重述所有你想要的键，而不是只写改动的那个：
 
 ```yaml
 - id: screenshot-feedback

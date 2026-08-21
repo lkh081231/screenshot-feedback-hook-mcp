@@ -73,6 +73,8 @@ dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
 dsh web
 ```
 
+This package is a dsh **bundle**: its `package.json` declares `dsh.bundle.patch`, pointing at the [cordis.patch.yml](dsh-plugin/cordis.patch.yml) it ships. `dsh plugin add` recognizes that manifest, appends the package to the profile's `dsh.profile.bundles`, and its patch layer composes into the config tree — **you never hand-write a patch**. After installing, `dsh --profile web --dump-config` shows the extra `# == dsh-screenshot-feedback-hook-mcp` layer with its `id: screenshot-feedback` row.
+
 Requires dsh ≥ `v0.1.0-rc.8`, pnpm on PATH, the Python package ≥ 0.3.0, and **a model that accepts image input**.
 
 > [!IMPORTANT]

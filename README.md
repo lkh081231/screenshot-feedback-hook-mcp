@@ -73,6 +73,8 @@ dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
 dsh web
 ```
 
+本包是一个 dsh **组合包（bundle）**：`package.json` 里的 `dsh.bundle.patch` 指向包内自带的 [cordis.patch.yml](dsh-plugin/cordis.patch.yml)。`dsh plugin add` 认出这个 manifest 后，会把包名追加进 profile 的 `dsh.profile.bundles`，那一层 patch 随即组合进配置树 —— **你不需要手写任何 patch**。装完用 `dsh --profile web --dump-config` 能看到多出来的 `# == dsh-screenshot-feedback-hook-mcp` 层和 `id: screenshot-feedback` 那一行。
+
 要求 dsh ≥ `v0.1.0-rc.8`、PATH 上有 pnpm、Python 包 ≥ 0.3.0，以及**一个支持图片输入的模型**。
 
 > [!IMPORTANT]
