@@ -1,8 +1,12 @@
 """CLI：`screenshot-feedback-hook-mcp capture` 截图存盘，供 Claude Code hook 调用。
 
-hook 只能回传文本，所以这里只输出「绝对路径 + 让 agent 用 Read 读图」
+hook 只能回传文本，所以这里只输出「绝对路径 + 让 agent 用读图工具读图」
 的指令；--hook-output 按事件输出对应的 hook JSON schema（两种事件字段
-不同，封装在这里避免用户手拼出错）。
+不同，封装在这里避免用户手拼出错）。读图工具名各宿主不同（Claude Code
+是 Read，DeepSeek Harness 是 read_image），用 --image-tool 指定。
+
+--json 供程序化调用方（dsh 原生插件）使用：只吐结构化结果，不吐给人看
+的中文提示，也不用退出码表达业务失败。
 
 入口 entry() 同时承担 MCP server：不带子命令时直接以 MCP server 运行，
 这样 `uvx screenshot-feedback-hook-mcp` 即 MCP、加子命令即 CLI，单一
@@ -17,7 +21,10 @@ import sys
 import tempfile
 import time
 from datetime import datetime
+from io import BytesIO
 from pathlib import Path
+
+from PIL import Image
 
 from screenshot_feedback_hook_mcp.core import capture, optimize, platform_check
 
@@ -44,6 +51,10 @@ def _read_hook_stdin() -> dict:
         return {}
 
 
+def _emit_json(payload: dict) -> None:
+    print(json.dumps(payload, ensure_ascii=False))
+
+
 def _emit_hook_json(event: str, message: str) -> None:
     if event == "post-tool-use":
         payload = {
@@ -54,7 +65,7 @@ def _emit_hook_json(event: str, message: str) -> None:
         }
     else:  # stop：没有 additionalContext 字段，用 block+reason 让 Claude 继续并看到文字
         payload = {"decision": "block", "reason": message}
-    print(json.dumps(payload, ensure_ascii=False))
+    _emit_json(payload)
 
 
 def cmd_capture(args: argparse.Namespace) -> int:
@@ -62,6 +73,7 @@ def cmd_capture(args: argparse.Namespace) -> int:
     if hook_event == "stop":
         # Stop hook 用 block 回传文字会让 Claude 继续跑、再次触发 Stop。
         # Claude Code 以 stop_hook_active 标记二次触发，此时必须放行，否则死循环。
+        # 注意：dsh 的 CC hook 桥接恒为 false，那边的防循环由 dsh 插件按 turn 去重。
         if _read_hook_stdin().get("stop_hook_active"):
             return 0
 
@@ -75,6 +87,10 @@ def cmd_capture(args: argparse.Namespace) -> int:
         msg = f"screenshot-feedback-hook-mcp 截图失败：{exc}"
         if warnings:
             msg += " | " + " | ".join(warnings)
+        if args.json_out:
+            # 程序化调用方自己决定怎么呈现，失败不走退出码
+            _emit_json({"error": msg, "warnings": warnings})
+            return 0
         if hook_event:
             _emit_hook_json(hook_event, msg)
             return 0  # hook 模式下不以非零退出，避免干扰 agent 主流程
@@ -89,7 +105,22 @@ def cmd_capture(args: argparse.Namespace) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_bytes(data)
 
-    message = f"截图已保存到 {out}，请用 Read 工具读取该图片查看实际画面。"
+    if args.json_out:
+        with Image.open(BytesIO(data)) as final:
+            width, height = final.size
+        _emit_json(
+            {
+                "path": str(out),
+                "bytes": len(data),
+                "width": width,
+                "height": height,
+                "format": "jpeg",
+                "warnings": warnings,
+            }
+        )
+        return 0
+
+    message = f"截图已保存到 {out}，请用 {args.image_tool} 工具读取该图片查看实际画面。"
     if warnings:
         message += " 注意：" + " ".join(warnings)
 
@@ -126,9 +157,21 @@ def main(argv: list[str] | None = None) -> int:
     p_cap.add_argument("--max-edge", type=int, default=optimize.MAX_EDGE, help="最长边像素上限")
     p_cap.add_argument("--target-kb", type=int, default=optimize.TARGET_BYTES // 1000, help="目标体积 KB")
     p_cap.add_argument(
+        "--image-tool",
+        default="Read",
+        help="提示 agent 用哪个工具读图（Claude Code: Read，DeepSeek Harness: read_image）",
+    )
+    out_mode = p_cap.add_mutually_exclusive_group()
+    out_mode.add_argument(
         "--hook-output",
         choices=["post-tool-use", "stop"],
         help="按 Claude Code hook 事件输出对应 JSON（PostToolUse/Stop schema 不同）",
+    )
+    out_mode.add_argument(
+        "--json",
+        dest="json_out",
+        action="store_true",
+        help="输出结构化 JSON（供 dsh 插件等程序化调用方使用）",
     )
     p_cap.set_defaults(func=cmd_capture)
 
