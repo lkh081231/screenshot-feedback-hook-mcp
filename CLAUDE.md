@@ -34,13 +34,19 @@ screenshot_feedback_hook_mcp/
 examples/                # hook 配置样例、MCP 配置样例
 tests/                   # optimize 单测 + hook schema 单测 + capture 冒烟测试
 pyproject.toml           # uv 管理，[project.scripts] 只暴露 screenshot-feedback-hook-mcp
-dsh-plugin/              # DeepSeek Harness 原生插件（独立 npm 包）
-├── src/config.ts        # Schemastery Config（dsh 不允许硬编码可调参数）
+dsh-plugin/              # DeepSeek Harness 原生插件（独立 npm 包，双面：Host + 浏览器）
+├── src/config.ts        # Schemastery Config，同时充当 settings 命名空间的 schema
 ├── src/capture.ts       # spawn Python CLI(--json) → ctx.attachments.saveImage
 ├── src/route.ts         # 图片能力闸门 + 换 provider 提示文案
 ├── src/content.ts       # 规范值 ↔ 图片块/插件来源消息 的共享投影
 ├── src/tools.ts         # take_screenshot / list_monitors
 ├── src/auto.ts          # tools/post-execute 与 agent/turn-stopping
+├── src/index.ts         # Host 半侧：installSettingsSection + 注册工具/自动时机
+├── src/client/          # 浏览器半侧：设置页那张卡片（React）
+│   ├── card-form.ts     #   自己的暂存表单 + revision 设栅（不能 import dsh 那份）
+│   ├── controller.ts    #   settings scope ↔ 表单，CARD_FIELDS 决定卡片长什么样
+│   └── ScreenshotCard.tsx
+├── tsdown.config.ts     # 复刻 dsh 未发布的 clientBundle 产物格式
 └── cordis.patch.yml     # 组合包 patch 层（package.json 的 dsh.bundle 指向它）
 ```
 
@@ -87,6 +93,9 @@ dsh 专属的坑：
 - **附件准入单边上限 2000px**：`maxEdge` 超过它 `saveImage` 会直接拒。
 - **截图失败绝不能阻断 agent**：`tools/post-execute` 里所有异常都要吞掉并原样返回上游决策。
 - **只有 `defineTool` 等纯 builder 可以运行时 import**；服务一律走 `ctx`，避免与 host 的重复实例互相干扰。
+- **Config 必须是扁平标量**：它同时是 settings 命名空间的 schema，而 `SettingsScope.set/unset` 按字段写入与重置；嵌套一层对象会让卡片上的覆盖徽标与重置退化成整组操作（`args` 是唯一例外，卡片不编辑它）。
+- **配置一律按次读（`ConfigSource` thunk）**，不能缓存 `apply()` 那一刻的快照，否则用户在设置页存完要重启才生效。
+- **浏览器半侧的 bundle 有纯净度门禁**：只有 `PLATFORM_MODULES` + `PRELOADED_CLIENT_EXTERNALS`（react / react-dom / cordis / ui-slots / ui-primitives / client-runtime/client）能保持 `require()`，其余一律内联；跨插件的值导入必须改成类型 import 或走 cordis 服务。dsh 的 `clientBundle` 预设**没发到 npm**，产物格式由本仓库的 `tsdown.config.ts` 自己复刻，升级 dsh 时要复核。
 
 ## 工作方式
 

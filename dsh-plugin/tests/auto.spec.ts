@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PostToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { applyAutoCapture, matchesToolName, withAdditionalContext } from '../src/auto.js'
 import { createAgent, createHarness } from './harness.js'
-import { makeConfig } from './make-config.js'
+import { makeConfig, makeSource } from './make-config.js'
 import type { FakeAgent, Harness } from './harness.js'
 
 type PostExecute = (exec: ToolExecution, result: ToolExecutionResult, next: () => Promise<PostToolDecision>) => Promise<PostToolDecision>
@@ -63,7 +63,7 @@ describe('withAdditionalContext', () => {
 describe('automatic capture after tools', () => {
   it('stays out of the way while disabled', async () => {
     const harness = createHarness()
-    applyAutoCapture(harness.ctx, makeConfig({}))
+    applyAutoCapture(harness.ctx, makeSource({}))
     const decision = await postExecute(harness)(execOf('edit', createAgent()), success, accept)
     expect(decision.additionalContexts).toBeUndefined()
     expect(harness.spawns).toHaveLength(0)
@@ -71,7 +71,7 @@ describe('automatic capture after tools', () => {
 
   it('attaches the screenshot to a matching successful tool call', async () => {
     const harness = createHarness()
-    applyAutoCapture(harness.ctx, makeConfig({ autoAfterTools: { enabled: true, delayMs: 0 } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
     const decision = await postExecute(harness)(execOf('write', createAgent()), success, accept)
     expect(decision.additionalContexts).toHaveLength(1)
     expect(decision.additionalContexts?.[0]?.content.map(block => block.type)).toEqual(['text', 'image'])
@@ -80,14 +80,14 @@ describe('automatic capture after tools', () => {
 
   it('ignores tools the matcher does not name', async () => {
     const harness = createHarness()
-    applyAutoCapture(harness.ctx, makeConfig({ autoAfterTools: { enabled: true, delayMs: 0 } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
     const decision = await postExecute(harness)(execOf('read', createAgent()), success, accept)
     expect(decision.additionalContexts).toBeUndefined()
   })
 
   it('skips a failed tool call, whose screen proves nothing', async () => {
     const harness = createHarness()
-    applyAutoCapture(harness.ctx, makeConfig({ autoAfterTools: { enabled: true, delayMs: 0 } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
     const decision = await postExecute(harness)(execOf('edit', createAgent()), failure, accept)
     expect(decision.additionalContexts).toBeUndefined()
     expect(harness.spawns).toHaveLength(0)
@@ -96,7 +96,7 @@ describe('automatic capture after tools', () => {
   it('never lets a broken screenshot break the tool pipeline', async () => {
     const harness = createHarness()
     harness.failCapture = true
-    applyAutoCapture(harness.ctx, makeConfig({ autoAfterTools: { enabled: true, delayMs: 0 } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
     const decision = await postExecute(harness)(execOf('edit', createAgent()), success, accept)
     expect(decision).toEqual({ kind: 'accept' })
     expect(harness.warnings.join(' ')).toContain('no display')
@@ -105,7 +105,7 @@ describe('automatic capture after tools', () => {
   it('explains a text-only model once and then keeps quiet', async () => {
     const harness = createHarness()
     harness.modalities = ['text']
-    applyAutoCapture(harness.ctx, makeConfig({ autoAfterTools: { enabled: true, delayMs: 0 } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
     const agent = createAgent()
     const first = await postExecute(harness)(execOf('edit', agent), success, accept)
     const text = first.additionalContexts?.[0]?.content[0]
@@ -117,10 +117,41 @@ describe('automatic capture after tools', () => {
   })
 })
 
+describe('live configuration', () => {
+  it('reads the source on every trigger, so a settings-page save takes effect without a restart', async () => {
+    const harness = createHarness()
+    // installSettingsSection 会在挂上 settings 后换掉这个 thunk；插件必须按次读，
+    // 而不是缓存 apply() 那一刻的快照，否则设置页存完要重启才生效
+    let current = makeConfig({})
+    applyAutoCapture(harness.ctx, () => current)
+
+    const off = await postExecute(harness)(execOf('edit', createAgent()), success, accept)
+    expect(off.additionalContexts).toBeUndefined()
+
+    current = makeConfig({ autoAfterTools: true, autoAfterToolsDelayMs: 0 })
+    const on = await postExecute(harness)(execOf('edit', createAgent()), success, accept)
+    expect(on.additionalContexts).toHaveLength(1)
+    expect(harness.saved).toHaveLength(1)
+  })
+
+  it('picks up a matcher change without re-registering the listener', async () => {
+    const harness = createHarness()
+    let current = makeConfig({ autoAfterTools: true, autoAfterToolsDelayMs: 0 })
+    applyAutoCapture(harness.ctx, () => current)
+
+    const before = await postExecute(harness)(execOf('bash', createAgent()), success, accept)
+    expect(before.additionalContexts).toBeUndefined()
+
+    current = makeConfig({ autoAfterTools: true, autoAfterToolsDelayMs: 0, autoAfterToolsMatcher: 'bash' })
+    const after = await postExecute(harness)(execOf('bash', createAgent()), success, accept)
+    expect(after.additionalContexts).toHaveLength(1)
+  })
+})
+
 describe('automatic capture at turn end', () => {
   it('steers exactly once per turn, which is what stops the loop', async () => {
     const harness = createHarness()
-    applyAutoCapture(harness.ctx, makeConfig({ autoOnTurnStop: { enabled: true, delayMs: 0 } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoOnTurnStop: true, autoOnTurnStopDelayMs: 0 }))
     const { agent, steered } = createAgent()
     const signal = new AbortController().signal
     const stop = turnStopping(harness)
@@ -137,7 +168,7 @@ describe('automatic capture at turn end', () => {
 
   it('injects without steering when the deployment asks for it', async () => {
     const harness = createHarness()
-    applyAutoCapture(harness.ctx, makeConfig({ autoOnTurnStop: { enabled: true, delayMs: 0, steer: false } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoOnTurnStop: true, autoOnTurnStopDelayMs: 0, autoOnTurnStopSteer: false }))
     const { agent, steered, injected } = createAgent()
     await turnStopping(harness)({ agent, turn: 1, signal: new AbortController().signal })
     expect(steered).toHaveLength(0)
@@ -146,7 +177,7 @@ describe('automatic capture at turn end', () => {
 
   it('does nothing while disabled', async () => {
     const harness = createHarness()
-    applyAutoCapture(harness.ctx, makeConfig({}))
+    applyAutoCapture(harness.ctx, makeSource({}))
     const { agent, steered } = createAgent()
     await turnStopping(harness)({ agent, turn: 1, signal: new AbortController().signal })
     expect(steered).toHaveLength(0)
@@ -156,7 +187,7 @@ describe('automatic capture at turn end', () => {
   it('never steers on a failed screenshot, so the turn can still close', async () => {
     const harness = createHarness()
     harness.failCapture = true
-    applyAutoCapture(harness.ctx, makeConfig({ autoOnTurnStop: { enabled: true, delayMs: 0 } }))
+    applyAutoCapture(harness.ctx, makeSource({ autoOnTurnStop: true, autoOnTurnStopDelayMs: 0 }))
     const { agent, steered } = createAgent()
     await turnStopping(harness)({ agent, turn: 1, signal: new AbortController().signal })
     expect(steered).toHaveLength(0)

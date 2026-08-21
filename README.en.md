@@ -80,7 +80,7 @@ Requires dsh ≥ `v0.1.0-rc.8`, pnpm on PATH, the Python package ≥ 0.3.0, and 
 > [!IMPORTANT]
 > **DeepSeek's `deepseek-v4-flash` and `deepseek-v4-pro` are both text-only**, and the built-in `deepseek-official` route on rc.8 ships no vision model at all. With those, a screenshot never reaches the conversation (dsh rejects it before the request), so the plugin skips the capture and tells you how to switch: add an Anthropic/OpenAI-style catalog provider under Settings → Models and pick a vision model, or declare `input: [text, image]` for your custom provider's model.
 
-Tools and configuration (`monitor`, `delayMs`, the two automatic timings that ship disabled) are documented in [dsh-plugin/README.md](dsh-plugin/README.md).
+Once installed, tune it from the card at **Settings → Plugins → Plugin configuration → Screenshot feedback** (monitor, the various delays, the two automatic timings that ship disabled); saves take effect without a restart. The full field table and how it works are in [dsh-plugin/README.md](dsh-plugin/README.md).
 
 ## Claude Code hook (auto-screenshot after an action)
 

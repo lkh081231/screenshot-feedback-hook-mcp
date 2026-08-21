@@ -14,15 +14,19 @@ describe('Config', () => {
       targetKb: DEFAULT_TARGET_KB,
       captureTimeoutMs: 30_000,
       warnOnTextOnlyModel: true,
-      autoAfterTools: { enabled: false, matcher: DEFAULT_TOOL_MATCHER, delayMs: 1_500 },
-      autoOnTurnStop: { enabled: false, delayMs: 1_500, steer: true },
+      autoAfterTools: false,
+      autoAfterToolsMatcher: DEFAULT_TOOL_MATCHER,
+      autoAfterToolsDelayMs: 1_500,
+      autoOnTurnStop: false,
+      autoOnTurnStopDelayMs: 1_500,
+      autoOnTurnStopSteer: true,
     })
   })
 
   it('keeps both automatic timings off by default', () => {
     const config = makeConfig({})
-    expect(config.autoAfterTools.enabled).toBe(false)
-    expect(config.autoOnTurnStop.enabled).toBe(false)
+    expect(config.autoAfterTools).toBe(false)
+    expect(config.autoOnTurnStop).toBe(false)
   })
 
   it('defaults the tool matcher to dsh tool names, not Claude Code ones', () => {
@@ -34,11 +38,18 @@ describe('Config', () => {
     expect(makeConfig({ maxEdge: ATTACHMENT_MAX_EDGE }).maxEdge).toBe(ATTACHMENT_MAX_EDGE)
   })
 
-  it('keeps a partially specified auto section on its own defaults', () => {
-    expect(makeConfig({ autoAfterTools: { enabled: true } }).autoAfterTools).toEqual({
-      enabled: true,
-      matcher: DEFAULT_TOOL_MATCHER,
-      delayMs: 1_500,
-    })
+  it('leaves the sibling auto fields on their defaults when only the switch is set', () => {
+    const config = makeConfig({ autoAfterTools: true })
+    expect(config.autoAfterTools).toBe(true)
+    expect(config.autoAfterToolsMatcher).toBe(DEFAULT_TOOL_MATCHER)
+    expect(config.autoAfterToolsDelayMs).toBe(1_500)
+  })
+
+  it('keeps every field a flat scalar, which is what the settings card writes', () => {
+    for (const [field, value] of Object.entries(makeConfig({}))) {
+      // args 是这份 schema 里唯一的非标量，卡片刻意不编辑它
+      if (field === 'args') continue
+      expect(typeof value, field).not.toBe('object')
+    }
   })
 })

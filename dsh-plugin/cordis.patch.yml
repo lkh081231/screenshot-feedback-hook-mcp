@@ -1,13 +1,20 @@
 # 由 `dsh plugin add dsh-screenshot-feedback-hook-mcp` 装入 profile 后自动生效。
-# 默认只提供手动的 take_screenshot / list_monitors 工具；两个自动截图时机
-# 默认关闭，在自己 profile 的 cordis.patch.yml 里按 id `screenshot-feedback`
-# 覆盖本行即可打开（覆盖会替换整个 config，需要重述所有要用的键）。
+#
+# 这一行只是**组合层**：装好之后日常调参请去「设置 → 插件 → 插件配置 →
+# 截图反馈」，那张卡片写的是 $DSH_HOME/settings.yaml，叠在这一行之上、免重启。
+# 这里适合固定的部署事实（去哪里找截图命令、默认哪块屏）。
 - insert:
     - id: screenshot-feedback
       name: dsh-screenshot-feedback-hook-mcp
       config:
-        # 零安装：uvx 会按需拉起 PyPI 上的 screenshot-feedback-hook-mcp。
+        # 零安装：uvx 会按需拉起 PyPI 上的 screenshot-feedback-hook-mcp（需要 >= 0.3.0）。
         # 已经 pipx / uv tool install 过的，把 command 改成 screenshot-feedback-hook-mcp、args 清空。
         command: uvx
         args: ['screenshot-feedback-hook-mcp']
+        # 0 = 全部显示器拼接，1..N = 单屏
         monitor: 0
+        # 两个自动截图时机默认关；打开它们用设置页那张卡片，或在自己 profile 的
+        # cordis.patch.yml 里按 id screenshot-feedback 覆盖本行（覆盖会替换整个
+        # config，需要重述所有要用的键）：
+        #   autoAfterTools: true
+        #   autoOnTurnStop: true

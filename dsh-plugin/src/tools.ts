@@ -10,7 +10,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
 import { captureScreenshot, listMonitors } from './capture.js'
-import type { Config } from './config.js'
+import type { ConfigSource } from './config.js'
 import { imageValueFromRef, screenshotContent } from './content.js'
 import type { ScreenshotValue } from './content.js'
 import { assertImageCapableRoute } from './route.js'
@@ -44,9 +44,9 @@ const SCREENSHOT_OUTPUT = {
 /**
  * 注册两个工具。
  * @param ctx - 插件上下文（工具随它的生命周期自动注销）。
- * @param config - 插件配置。
+ * @param source - 配置读取器；按次读取，settings 页改完立刻生效。
  */
-export function applyTools(ctx: Context, config: Config): void {
+export function applyTools(ctx: Context, source: ConfigSource): void {
   ctx.tools.register(defineTool({
     name: 'take_screenshot',
     description:
@@ -72,7 +72,7 @@ export function applyTools(ctx: Context, config: Config): void {
     async execute(args, exec): Promise<ScreenshotValue> {
       // 闸门放在任何 I/O 之前：拒绝时不该已经截了一张没人能看的图
       await assertImageCapableRoute(ctx, exec.agent, exec.signal)
-      const result = await captureScreenshot(ctx, config, {
+      const result = await captureScreenshot(ctx, source(), {
         monitor: args.monitor,
         delayMs: args.delay_ms,
         signal: exec.signal,
@@ -84,7 +84,7 @@ export function applyTools(ctx: Context, config: Config): void {
       }
     },
     presentCall(args): GenericCallView {
-      const monitor = args.monitor ?? config.monitor
+      const monitor = args.monitor ?? source().monitor
       return {
         card: 'generic',
         title: monitor === 0 ? 'Screenshot (all monitors)' : `Screenshot (monitor ${String(monitor)})`,
@@ -103,7 +103,7 @@ export function applyTools(ctx: Context, config: Config): void {
     },
     isConcurrencySafe: () => true,
     async execute(_args, exec): Promise<string> {
-      return await listMonitors(ctx, config, exec.signal)
+      return await listMonitors(ctx, source(), exec.signal)
     },
   }))
 }

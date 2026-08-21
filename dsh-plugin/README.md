@@ -90,7 +90,9 @@ Layers compose in this order: each bundle's patch in `dsh.profile.bundles` order
 
 ## Configuration
 
-The bundle inserts one plugin row with id `screenshot-feedback`. To change it, add a row with the same id to your profile's `$DSH_HOME/profiles/<name>/cordis.patch.yml`. **A later layer replaces the whole `config` value**, so restate every key you want, not only the changed one:
+Day to day, tune it from the card at **Settings → Plugins → Plugin configuration → Screenshot feedback**. It writes `$DSH_HOME/settings.yaml`, layered over the composition entry, with no restart. Every field on the card says whether you have overridden it and resets back to the composed value in one click.
+
+The bundle inserts one plugin row with id `screenshot-feedback` — the right place for fixed deployment facts. To change it, add a row with the same id to your profile's `$DSH_HOME/profiles/<name>/cordis.patch.yml`. **A later layer replaces the whole `config` value**, so restate every key you want:
 
 ```yaml
 - id: screenshot-feedback
@@ -99,30 +101,48 @@ The bundle inserts one plugin row with id `screenshot-feedback`. To change it, a
     command: uvx
     args: ['screenshot-feedback-hook-mcp']
     monitor: 1
-    autoAfterTools:
-      enabled: true
-      delayMs: 2000
+    autoAfterTools: true
+    autoAfterToolsDelayMs: 2000
 ```
 
-| Field | Default | Meaning |
-|---|---|---|
-| `command` | `uvx` | The screenshot executable. Installed with pipx/uv tool? Set it to `screenshot-feedback-hook-mcp` and clear `args`. |
-| `args` | `['screenshot-feedback-hook-mcp']` | Fixed arguments placed before the subcommand. |
-| `cwd` | `''` | Working directory for the child process; empty means the host's cwd. |
-| `monitor` | `0` | `0` stitches every monitor, `1..N` picks one. `list_monitors` shows the indices. |
-| `delayMs` | `0` | Wait before a manual capture, so a page or drawing finishes rendering. |
-| `maxEdge` | `1568` | Longest edge in pixels. **Do not exceed 2000** — the attachment store refuses larger images. |
-| `targetKb` | `80` | Byte budget. dsh has no 25k-token MCP output cap, so raise it when you need more detail. |
-| `captureTimeoutMs` | `30000` | Per-capture timeout, on top of the configured delay. |
-| `warnOnTextOnlyModel` | `true` | Explain once per session how to switch to an image-capable model. |
-| `autoAfterTools.enabled` | `false` | Capture after a matching tool call. |
-| `autoAfterTools.matcher` | `edit\|write\|str_replace_editor` | Tool names. A plain `[A-Za-z0-9_|]+` pattern is exact alternation; anything else is a regex. |
-| `autoAfterTools.delayMs` | `1500` | Wait before the automatic capture. |
-| `autoOnTurnStop.enabled` | `false` | Capture as a turn is about to close. |
-| `autoOnTurnStop.delayMs` | `1500` | Wait before the automatic capture. |
-| `autoOnTurnStop.steer` | `true` | `true` steers the model into one more step to look at it; `false` only injects it as context. |
+| Field | Default | On the card | Meaning |
+|---|---|:--:|---|
+| `command` | `uvx` | | The screenshot executable. Installed with pipx/uv tool? Set it to `screenshot-feedback-hook-mcp` and clear `args`. |
+| `args` | `['screenshot-feedback-hook-mcp']` | | Fixed arguments placed before the subcommand. |
+| `cwd` | `''` | | Working directory for the child process; empty means the host's cwd. |
+| `monitor` | `0` | ✓ | `0` stitches every monitor, `1..N` picks one. `list_monitors` shows the indices. |
+| `delayMs` | `0` | ✓ | Wait before a manual capture, so a page or drawing finishes rendering. |
+| `maxEdge` | `1568` | ✓ | Longest edge in pixels. **Do not exceed 2000** — the attachment store refuses larger images. |
+| `targetKb` | `80` | ✓ | Byte budget. dsh has no 25k-token MCP output cap, so raise it when you need more detail. |
+| `captureTimeoutMs` | `30000` | ✓ | Per-capture timeout, on top of the configured delay. |
+| `warnOnTextOnlyModel` | `true` | ✓ | Explain once per session how to switch to an image-capable model. |
+| `autoAfterTools` | `false` | ✓ | Capture after a matching tool call. |
+| `autoAfterToolsMatcher` | `edit\|write\|str_replace_editor` | ✓ | Tool names. A plain `[A-Za-z0-9_|]+` pattern is exact alternation; anything else is a regex. |
+| `autoAfterToolsDelayMs` | `1500` | ✓ | Wait before the automatic capture. |
+| `autoOnTurnStop` | `false` | ✓ | Capture as a turn is about to close. |
+| `autoOnTurnStopDelayMs` | `1500` | ✓ | Wait before the automatic capture. |
+| `autoOnTurnStopSteer` | `true` | ✓ | `true` steers the model into one more step to look at it; `false` only injects it as context. |
 
-Editing `config` hot-swaps the plugin — no restart.
+`command` / `args` / `cwd` are deliberately off the card: they decide where the executable is found, which is deployment composition rather than user preference. Editing `config` hot-swaps the plugin; editing the card needs not even that — every trigger re-reads the configuration.
+
+### How the settings card is wired
+
+dsh's **Plugin configuration** tab renders the intersection of two ledgers: which settings namespaces the Host serves, and which cards the browser registered under those keys. So this package ships both halves, paired by the single namespace `screenshot-feedback`:
+
+- **The Host half** (`src/index.ts`) registers the namespace through `installSettingsSection` from `@deepseek-ai/dsh-settings`, with the `cordis.yml` row as the composition `base`, and points its configuration source at the resolved scope. With no settings service mounted it falls back to the composition entry and behaves exactly as before.
+- **The browser half** (`src/client/`) registers a React card into the `settings.plugin.item` keyed slot under that same namespace. It reads and writes through `ctx.settingsScope`, which fences each write with the revision it read, so a form that has drifted from the document is refused rather than overwriting a concurrent change.
+
+The browser half is discovered through the `dsh.client` declaration in `package.json`, and its artifact is `lib/client.js`:
+
+```jsonc
+{
+  "exports": { "./client": { "default": "./lib/client.js" } },
+  "dsh": { "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-settings-plugins"] } }
+}
+```
+
+> [!NOTE]
+> dsh's own `clientBundle` preset that produces this artifact is **not published to npm** (its README lists this as a known limitation), so [tsdown.config.ts](tsdown.config.ts) reproduces the contract here: the lazy-CJS closure factory, the `window.__ModuleLoader__.load` banner/footer, and keeping only module-table specifiers as `require()`. When upgrading dsh, re-check `packages/client/tsdown.client.ts` and `packages/client/web/src/platform.ts` against it.
 
 ### About the automatic timings
 

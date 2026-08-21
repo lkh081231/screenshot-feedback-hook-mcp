@@ -1,6 +1,9 @@
 /**
- * 插件配置。dsh 的约定是「凡是不同部署可能取不同值的参数都必须是配置字段」，
- * 所以截图命令、显示器编号、等待时间、体积预算和两个自动时机全部在这里。
+ * 插件配置。dsh 的约定是「凡是不同部署可能取不同值的参数都必须是配置字段」。
+ *
+ * 字段刻意是**扁平的标量**：这份 schema 同时充当 settings 命名空间，而
+ * `SettingsScope.set(field, value)` 按字段写入、按字段判断「是否被用户覆盖」、
+ * 按字段重置。嵌套一层对象会让设置页上的覆盖徽标与重置退化成整组操作。
  * @module dsh-screenshot-feedback-hook-mcp/config
  */
 
@@ -19,36 +22,16 @@ export const ATTACHMENT_MAX_EDGE = 2000
 export const DEFAULT_TARGET_KB = 80
 
 /** 自动截图默认等 1.5s：浏览器热重载约 1–2s，EDA/CAD 重绘更久时由用户调大。 */
-const DEFAULT_AUTO_DELAY_MS = 1_500
+export const DEFAULT_AUTO_DELAY_MS = 1_500
+
+/** 默认单次截图超时。 */
+export const DEFAULT_CAPTURE_TIMEOUT_MS = 30_000
 
 /**
  * dsh 内置的改文件工具名**全小写**，与 Claude Code 的 `Edit|Write` 不是一套；
  * 照抄 CC 的 matcher 在 dsh 上一个都匹配不上。
  */
 export const DEFAULT_TOOL_MATCHER = 'edit|write|str_replace_editor'
-
-/** 工具执行后自动截图。 */
-export interface AutoAfterToolsConfig {
-  /** 是否启用。默认关：截图会给每次工具调用增加一张图的上下文成本。 */
-  enabled: boolean
-  /** 工具名匹配；纯 `[A-Za-z0-9_|]+` 按字面量交替处理，其余按正则（与 CC hook matcher 同语义）。 */
-  matcher: string
-  /** 截图前等待毫秒数，等页面/工程图渲染完成。 */
-  delayMs: number
-}
-
-/** 轮次结束时自动截图。 */
-export interface AutoOnTurnStopConfig {
-  /** 是否启用。默认关。 */
-  enabled: boolean
-  /** 截图前等待毫秒数。 */
-  delayMs: number
-  /**
-   * true = 用 `agent.steer()` 强制模型再跑一步看图；false = 只 `agent.inject()`
-   * 塞进上下文，等下次唤醒才被消费。无论哪种，每个 turn 最多触发一次。
-   */
-  steer: boolean
-}
 
 /** 插件配置。 */
 export interface Config {
@@ -66,27 +49,32 @@ export interface Config {
   maxEdge: number
   /** 目标体积（KB）。dsh 没有 Claude Code 那条 25k token 的 MCP 输出上限，画面细节不够时可以调大。 */
   targetKb: number
-  /** 单次截图超时（毫秒）。 */
+  /** 单次截图超时（毫秒），在等待时间之外另算。 */
   captureTimeoutMs: number
   /** 当前模型不支持图片输入时，是否给模型一条说明该怎么换 provider 的提示（每会话一次）。 */
   warnOnTextOnlyModel: boolean
-  /** 工具执行后自动截图。 */
-  autoAfterTools: AutoAfterToolsConfig
-  /** 轮次结束时自动截图。 */
-  autoOnTurnStop: AutoOnTurnStopConfig
+  /** 命中的工具执行完就自动截图。默认关：每张截图都会跟着后续每次请求走。 */
+  autoAfterTools: boolean
+  /** 工具名匹配；纯 `[A-Za-z0-9_|]+` 按字面量交替处理，其余按正则（与 CC hook matcher 同语义）。 */
+  autoAfterToolsMatcher: string
+  /** 工具后自动截图前的等待毫秒数，等页面/工程图渲染完成。 */
+  autoAfterToolsDelayMs: number
+  /** 轮次即将结束时自动截图。默认关。 */
+  autoOnTurnStop: boolean
+  /** 轮次结束自动截图前的等待毫秒数。 */
+  autoOnTurnStopDelayMs: number
+  /**
+   * true = 用 `agent.steer()` 强制模型再跑一步看图；false = 只 `agent.inject()`
+   * 塞进上下文，等下次唤醒才被消费。无论哪种，每个 turn 最多触发一次。
+   */
+  autoOnTurnStopSteer: boolean
 }
 
-const AutoAfterTools: z<AutoAfterToolsConfig> = z.object({
-  enabled: z.boolean().default(false),
-  matcher: z.string().default(DEFAULT_TOOL_MATCHER),
-  delayMs: z.number().min(0).default(DEFAULT_AUTO_DELAY_MS),
-})
-
-const AutoOnTurnStop: z<AutoOnTurnStopConfig> = z.object({
-  enabled: z.boolean().default(false),
-  delayMs: z.number().min(0).default(DEFAULT_AUTO_DELAY_MS),
-  steer: z.boolean().default(true),
-})
+/**
+ * 配置读取器。settings 页改了值之后要立刻生效，所以插件内部一律**按次读取**，
+ * 不缓存 `apply()` 那一刻的快照。
+ */
+export type ConfigSource = () => Config
 
 export const Config: z<Config> = z.object({
   command: z.string().default('uvx'),
@@ -96,8 +84,12 @@ export const Config: z<Config> = z.object({
   delayMs: z.number().min(0).default(0),
   maxEdge: z.number().step(1).min(1).max(ATTACHMENT_MAX_EDGE).default(DEFAULT_MAX_EDGE),
   targetKb: z.number().step(1).min(1).default(DEFAULT_TARGET_KB),
-  captureTimeoutMs: z.number().min(1).default(30_000),
+  captureTimeoutMs: z.number().min(1).default(DEFAULT_CAPTURE_TIMEOUT_MS),
   warnOnTextOnlyModel: z.boolean().default(true),
-  autoAfterTools: AutoAfterTools,
-  autoOnTurnStop: AutoOnTurnStop,
+  autoAfterTools: z.boolean().default(false),
+  autoAfterToolsMatcher: z.string().default(DEFAULT_TOOL_MATCHER),
+  autoAfterToolsDelayMs: z.number().min(0).default(DEFAULT_AUTO_DELAY_MS),
+  autoOnTurnStop: z.boolean().default(false),
+  autoOnTurnStopDelayMs: z.number().min(0).default(DEFAULT_AUTO_DELAY_MS),
+  autoOnTurnStopSteer: z.boolean().default(true),
 })

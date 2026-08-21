@@ -90,7 +90,13 @@ dsh --profile web --dump-config   # 应当出现 `# == dsh-screenshot-feedback-h
 
 ## 配置
 
-组合包插入的那一行 id 是 `screenshot-feedback`。要改它，在自己 profile 的 `$DSH_HOME/profiles/<name>/cordis.patch.yml` 里写一行同 id 的配置。**后应用的层会替换整个 `config`**，所以要重述所有你想要的键，而不是只写改动的那个：
+装好之后日常调参在**设置 → 插件 → 插件配置 → 截图反馈**那张卡片上，它写的是
+`$DSH_HOME/settings.yaml`，叠在组合层之上、免重启。卡片上每个字段都标注是否被
+你覆盖过，并且能一键重置回组合层的值。
+
+组合包插入的那一行 id 是 `screenshot-feedback`，适合放固定的部署事实。要改它，
+在自己 profile 的 `$DSH_HOME/profiles/<name>/cordis.patch.yml` 里写一行同 id 的
+配置。**后应用的层会替换整个 `config`**，所以要重述所有你想要的键：
 
 ```yaml
 - id: screenshot-feedback
@@ -99,30 +105,61 @@ dsh --profile web --dump-config   # 应当出现 `# == dsh-screenshot-feedback-h
     command: uvx
     args: ['screenshot-feedback-hook-mcp']
     monitor: 1
-    autoAfterTools:
-      enabled: true
-      delayMs: 2000
+    autoAfterTools: true
+    autoAfterToolsDelayMs: 2000
 ```
 
-| 字段 | 默认 | 说明 |
-|---|---|---|
-| `command` | `uvx` | 截图可执行文件。用 pipx / uv tool 装过的，改成 `screenshot-feedback-hook-mcp` 并清空 `args`。 |
-| `args` | `['screenshot-feedback-hook-mcp']` | 置于子命令之前的固定参数。 |
-| `cwd` | `''` | 子进程工作目录；留空用 host 的 cwd。 |
-| `monitor` | `0` | `0` = 全部显示器拼接，`1..N` = 单屏。编号用 `list_monitors` 查。 |
-| `delayMs` | `0` | 手动截图前的等待，等页面 / 工程图渲染完成。 |
-| `maxEdge` | `1568` | 最长边像素。**不要超过 2000**，附件库会拒绝更大的图。 |
-| `targetKb` | `80` | 字节预算。dsh 没有 Claude Code 那条 25k token 的 MCP 输出上限，要看清细节可以调大。 |
-| `captureTimeoutMs` | `30000` | 单次截图超时（在等待时间之外另算）。 |
-| `warnOnTextOnlyModel` | `true` | 纯文本模型时，每会话提示一次该怎么换模型。 |
-| `autoAfterTools.enabled` | `false` | 命中的工具执行完就截图。 |
-| `autoAfterTools.matcher` | `edit\|write\|str_replace_editor` | 工具名匹配。纯 `[A-Za-z0-9_|]+` 按字面量精确交替，其余按正则。 |
-| `autoAfterTools.delayMs` | `1500` | 自动截图前的等待。 |
-| `autoOnTurnStop.enabled` | `false` | 轮次即将结束时截图。 |
-| `autoOnTurnStop.delayMs` | `1500` | 自动截图前的等待。 |
-| `autoOnTurnStop.steer` | `true` | `true` = steer 让模型再跑一步看图；`false` = 只 inject 进上下文。 |
+| 字段 | 默认 | 卡片上可改 | 说明 |
+|---|---|:--:|---|
+| `command` | `uvx` | | 截图可执行文件。用 pipx / uv tool 装过的，改成 `screenshot-feedback-hook-mcp` 并清空 `args`。 |
+| `args` | `['screenshot-feedback-hook-mcp']` | | 置于子命令之前的固定参数。 |
+| `cwd` | `''` | | 子进程工作目录；留空用 host 的 cwd。 |
+| `monitor` | `0` | ✓ | `0` = 全部显示器拼接，`1..N` = 单屏。编号用 `list_monitors` 查。 |
+| `delayMs` | `0` | ✓ | 手动截图前的等待，等页面 / 工程图渲染完成。 |
+| `maxEdge` | `1568` | ✓ | 最长边像素。**不要超过 2000**，附件库会拒绝更大的图。 |
+| `targetKb` | `80` | ✓ | 字节预算。dsh 没有 Claude Code 那条 25k token 的 MCP 输出上限，要看清细节可以调大。 |
+| `captureTimeoutMs` | `30000` | ✓ | 单次截图超时（在等待时间之外另算）。 |
+| `warnOnTextOnlyModel` | `true` | ✓ | 纯文本模型时，每会话提示一次该怎么换模型。 |
+| `autoAfterTools` | `false` | ✓ | 命中的工具执行完就截图。 |
+| `autoAfterToolsMatcher` | `edit\|write\|str_replace_editor` | ✓ | 工具名匹配。纯 `[A-Za-z0-9_|]+` 按字面量精确交替，其余按正则。 |
+| `autoAfterToolsDelayMs` | `1500` | ✓ | 自动截图前的等待。 |
+| `autoOnTurnStop` | `false` | ✓ | 轮次即将结束时截图。 |
+| `autoOnTurnStopDelayMs` | `1500` | ✓ | 自动截图前的等待。 |
+| `autoOnTurnStopSteer` | `true` | ✓ | `true` = steer 让模型再跑一步看图；`false` = 只 inject 进上下文。 |
 
-改 `config` 会触发 HMR 热替换，不需要重启进程。
+`command` / `args` / `cwd` 刻意不上卡片：它们决定去哪里找可执行文件，属于部署
+组合，不是用户偏好。改 `config` 会触发 HMR 热替换，改卡片则连热替换都不需要——
+插件每次触发都重读配置。
+
+### 设置页那张卡片是怎么接上去的
+
+dsh 的**插件配置**标签页渲染的是两份账本的交集：Host 服务了哪些 settings 命名
+空间，以及浏览器里有哪些卡片注册在这些键上。所以这个包同时提供两半，用同一个
+命名空间 `screenshot-feedback` 配对：
+
+- **Host 半侧**（`src/index.ts`）用 `@deepseek-ai/dsh-settings` 的
+  `installSettingsSection` 注册命名空间，把 `cordis.yml` 那一行当作组合层 `base`，
+  并把配置读取器指向解析后的 scope。没挂 settings 服务时它自动退回组合层，
+  行为与从前完全一致。
+- **浏览器半侧**（`src/client/`）把一张 React 卡片注册进 `settings.plugin.item`
+  这个 keyed slot，键就是同一个命名空间。它经 `ctx.settingsScope` 读写，写入用
+  读取时的 revision 设栅，所以已经和文档脱节的表单会被拒绝而不是覆盖并发改动。
+
+浏览器半侧靠 `package.json` 的 `dsh.client` 声明被发现，产物是 `lib/client.js`：
+
+```jsonc
+{
+  "exports": { "./client": { "default": "./lib/client.js" } },
+  "dsh": { "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-ui-settings-plugins"] } }
+}
+```
+
+> [!NOTE]
+> dsh 官方产出这种 bundle 的 `clientBundle` 预设**没有发布到 npm**（官方 README
+> 把这条列为已知限制），所以本包在 [tsdown.config.ts](tsdown.config.ts) 里自己复刻
+> 了那份产物契约：lazy-CJS 闭包工厂、`window.__ModuleLoader__.load` 的
+> banner/footer、以及只让模块表里那几个 specifier 保持 `require()`。升级 dsh 时
+> 要跟着复核 `packages/client/tsdown.client.ts` 与 `packages/client/web/src/platform.ts`。
 
 ### 关于两个自动时机
 
