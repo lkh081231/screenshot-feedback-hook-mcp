@@ -75,7 +75,10 @@ dsh web
 
 本包是一个 dsh **组合包（bundle）**：`package.json` 里的 `dsh.bundle.patch` 指向包内自带的 [cordis.patch.yml](dsh-plugin/cordis.patch.yml)。`dsh plugin add` 认出这个 manifest 后，会把包名追加进 profile 的 `dsh.profile.bundles`，那一层 patch 随即组合进配置树 —— **你不需要手写任何 patch**。装完用 `dsh --profile web --dump-config` 能看到多出来的 `# == dsh-screenshot-feedback-hook-mcp` 层和 `id: screenshot-feedback` 那一行。
 
-要求 dsh ≥ `v0.1.0-rc.8`、PATH 上有 pnpm、Python 包 ≥ 0.3.0，以及**一个支持图片输入的模型**。
+要求 dsh ≥ `v0.1.0-rc.8`、PATH 上有 pnpm、Python 包 ≥ 0.3.0、插件 ≥ **0.1.1**，以及**一个支持图片输入的模型**。
+
+> [!CAUTION]
+> **插件 0.1.0 有严重缺陷，装了会让该 profile 里的所有工具调用崩掉**（不只是截图）。请升级到 ≥ 0.1.1，升级步骤见 [dsh-plugin/README.zh.md](dsh-plugin/README.zh.md#从-010-升级必看)。
 
 > [!IMPORTANT]
 > **DeepSeek 的 `deepseek-v4-flash` 和 `deepseek-v4-pro` 都是纯文本模型**，rc.8 的内置 `deepseek-official` 路由也没有自带任何视觉模型。用它们的话截图根本进不了上下文（dsh 会在发请求前拒掉），所以插件会跳过截图并告诉你怎么换：在「设置 → 模型」加一个 Anthropic / OpenAI 等 catalog provider 选视觉模型，或给自定义 provider 的模型声明 `input: [text, image]`。

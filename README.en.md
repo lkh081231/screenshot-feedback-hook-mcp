@@ -75,7 +75,10 @@ dsh web
 
 This package is a dsh **bundle**: its `package.json` declares `dsh.bundle.patch`, pointing at the [cordis.patch.yml](dsh-plugin/cordis.patch.yml) it ships. `dsh plugin add` recognizes that manifest, appends the package to the profile's `dsh.profile.bundles`, and its patch layer composes into the config tree — **you never hand-write a patch**. After installing, `dsh --profile web --dump-config` shows the extra `# == dsh-screenshot-feedback-hook-mcp` layer with its `id: screenshot-feedback` row.
 
-Requires dsh ≥ `v0.1.0-rc.8`, pnpm on PATH, the Python package ≥ 0.3.0, and **a model that accepts image input**.
+Requires dsh ≥ `v0.1.0-rc.8`, pnpm on PATH, the Python package ≥ 0.3.0, the plugin ≥ **0.1.1**, and **a model that accepts image input**.
+
+> [!CAUTION]
+> **Plugin 0.1.0 is broken: installing it makes every tool call in that profile fail**, not just screenshots. Upgrade to ≥ 0.1.1 — steps in [dsh-plugin/README.md](dsh-plugin/README.md#upgrading-from-010-read-this).
 
 > [!IMPORTANT]
 > **DeepSeek's `deepseek-v4-flash` and `deepseek-v4-pro` are both text-only**, and the built-in `deepseek-official` route on rc.8 ships no vision model at all. With those, a screenshot never reaches the conversation (dsh rejects it before the request), so the plugin skips the capture and tells you how to switch: add an Anthropic/OpenAI-style catalog provider under Settings → Models and pick a vision model, or declare `input: [text, image]` for your custom provider's model.

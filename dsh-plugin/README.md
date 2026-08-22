@@ -39,6 +39,24 @@ git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
 ```
 
+### Upgrading from 0.1.0 (read this)
+
+**0.1.0 installed dsh's runtime packages into the profile as ordinary dependencies**, putting a second `@deepseek-ai/dsh-tools` in front of the one dsh itself loads. The damage is not limited to screenshots — **every** tool call in that profile dies with:
+
+```
+Cannot read properties of undefined (reading 'prepare')
+```
+
+0.1.1 declares them as peers, so nothing dsh-related is installed into the profile any more. If you already have 0.1.0, clear the polluted `node_modules` along with it:
+
+```sh
+dsh plugin --profile web remove dsh-screenshot-feedback-hook-mcp
+rm -rf ~/.dsh/profiles/web/node_modules
+dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
+```
+
+Then confirm `~/.dsh/profiles/<name>/node_modules/@deepseek-ai/` holds **no `dsh-*` package at all** — only `schemastery` and `cosmokit` belong there.
+
 ## How it registers with dsh
 
 This package is a dsh **bundle** — an npm package that carries a configuration layer, so you never hand-write a patch. Its `package.json` declares what it contributes:
@@ -198,5 +216,8 @@ The real-capture integration test is skipped unless you point it at an installed
 ```sh
 DSH_SCREENSHOT_CLI=../.venv/Scripts/screenshot-feedback-hook-mcp.exe npx vitest run
 ```
+
+> [!WARNING]
+> **Every `@deepseek-ai/dsh-*` package (and `@deepseek-ai/cordis`) is a peer dependency, never a `dependency`.** Local development gets them from `devDependencies`; at runtime they must come from the host installation. Moving one back into `dependencies` makes pnpm materialize a second copy inside the profile, which shadows the symlinks dsh keeps in `~/.dsh/profiles/node_modules/`. dsh-tools keys its scheduler with a module-local `Symbol`, so two copies mean `ctx.tools[TOOL_RUNTIME_SCHEDULER]` is `undefined` and **every tool call in that profile** — `read`, `write`, `bash`, all of them — dies with `Cannot read properties of undefined (reading 'prepare')`. `tests/packaging.spec.ts` guards this.
 
 MIT License.

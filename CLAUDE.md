@@ -86,6 +86,7 @@ npx @deepseek-ai/dsh@0.1.0-rc.8 --profile web --dump-config             # 确认
 
 dsh 专属的坑：
 
+- **插件绝不能把 `@deepseek-ai/dsh-*` 或 `@deepseek-ai/cordis` 放进 `dependencies`**（0.1.0 踩过，见 commit `d1e64b8`）。`dsh plugin add` 在 profile 目录跑 pnpm（`nodeLinker: hoisted`），这些包会被摊平进 `~/.dsh/profiles/<name>/node_modules/`，盖掉 dsh 用 `healProfilesModuleFallback` 建在 `profiles/node_modules/` 指向安装目录的符号链接；而 `boot()` 没传 `bareModuleBaseUrl`，composed config 的裸包名按 `~/.dsh/profiles/<name>/cordis.yml` 解析 —— 于是 `ctx.tools` 由 profile 本地副本造出，`dsh-agent-loop` 仍用安装目录那份，两边的 `TOOL_RUNTIME_SCHEDULER`（模块局部 `Symbol`）不相等，**该 profile 里所有工具调用**都以 `Cannot read properties of undefined (reading 'prepare')` 崩掉。一律走 `peerDependencies` + `peerDependenciesMeta.optional`（optional 是防 npm 7+ 自动装非可选 peer），只有 schemastery 这类叶子库当 dependency；`dsh-plugin/tests/packaging.spec.ts` 守这条线。注意 **link 安装的本地开发路径看不出这个 bug**（pnpm 不给 link 依赖装 deps），必须用 `npm pack` 的 tarball 装进干净 profile 才复现。
 - **基线是 dsh v0.1.0-rc.8**（tag `dsh-v0.1.0-rc.8`）。npm 的 `latest` dist-tag 还指向旧的 `0.0.1-rc.*`，依赖必须写死 `0.1.0-rc.8`；master 已经比 rc.8 走远（例如多了 `deepseek-v4-flash-vision-exp`），**别照 master 文档写**。
 - **图片能进上下文的前提**：`ctx.llm.resolveModelInfo(provider, model).inputModalities` 必须含 `'image'`。rc.8 内置的 `deepseek-official` 只有 `deepseek-v4-flash` / `deepseek-v4-pro`，两者纯文本 —— 所以截图前先过闸门，不通过就别截。
 - **dsh 上没有 `stop_hook_active`**：它的 CC hook 桥接把这个字段恒置为 false 且没有连击上限，我们 CLI 的防死循环逻辑在那边不生效。原生插件的 `agent/turn-stopping` 靠 `payload.turn` 去重自限。

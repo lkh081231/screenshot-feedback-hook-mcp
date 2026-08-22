@@ -39,6 +39,24 @@ git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
 ```
 
+### 从 0.1.0 升级（必看）
+
+**0.1.0 会把 dsh 的运行时包当成普通依赖装进 profile**，在 profile 里造出第二份 `@deepseek-ai/dsh-tools`，盖掉 dsh 自己那份。结果不只是截图不能用 —— 该 profile 里**任何**工具调用都会崩：
+
+```
+Cannot read properties of undefined (reading 'prepare')
+```
+
+0.1.1 起改成 peer 依赖，不会再往 profile 里装任何 dsh 包。已经装过 0.1.0 的，把被污染的 `node_modules` 一并清掉再装：
+
+```sh
+dsh plugin --profile web remove dsh-screenshot-feedback-hook-mcp
+rm -rf ~/.dsh/profiles/web/node_modules
+dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
+```
+
+装完确认一下 `~/.dsh/profiles/<name>/node_modules/@deepseek-ai/` 里**没有任何 `dsh-*`**（只该有 `schemastery` 和 `cosmokit`）。
+
 ## 它是怎么注册进 dsh 的
 
 本包是一个 dsh **组合包（bundle）** —— 一个附带配置层的 npm 包，不需要你手写任何 patch。它靠 `package.json` 里的 `dsh.bundle` manifest 声明自己贡献什么：
@@ -215,5 +233,8 @@ npm run build
 ```sh
 DSH_SCREENSHOT_CLI=../.venv/Scripts/screenshot-feedback-hook-mcp.exe npx vitest run
 ```
+
+> [!WARNING]
+> **所有 `@deepseek-ai/dsh-*` 与 `@deepseek-ai/cordis` 一律是 peer，绝不能放进 `dependencies`。** 本地开发靠 `devDependencies` 提供，运行时必须由 host 那份安装提供。把任何一个挪回 `dependencies`，pnpm 就会在 profile 里物化出第二份副本，盖掉 dsh 建在 `~/.dsh/profiles/node_modules/` 的符号链接；而 dsh-tools 的调度器是用模块局部 `Symbol` 索引的，两份副本会让 `ctx.tools[TOOL_RUNTIME_SCHEDULER]` 变成 `undefined`，**该 profile 里所有工具调用**（`read` / `write` / `bash` 全都算）都会以 `Cannot read properties of undefined (reading 'prepare')` 崩掉。`tests/packaging.spec.ts` 守着这条线。
 
 MIT License.
