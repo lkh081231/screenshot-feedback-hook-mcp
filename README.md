@@ -81,7 +81,7 @@ dsh web
 > **插件 0.1.0 有严重缺陷，装了会让该 profile 里的所有工具调用崩掉**（不只是截图）。请升级到 ≥ 0.1.1，升级步骤见 [dsh-plugin/README.zh.md](dsh-plugin/README.zh.md#从-010-升级必看)。
 
 > [!IMPORTANT]
-> **DeepSeek 的 `deepseek-v4-flash` 和 `deepseek-v4-pro` 都是纯文本模型**，rc.8 的内置 `deepseek-official` 路由也没有自带任何视觉模型。用它们的话截图根本进不了上下文（dsh 会在发请求前拒掉），所以插件会跳过截图并告诉你怎么换：在「设置 → 模型」加一个 Anthropic / OpenAI 等 catalog provider 选视觉模型，或给自定义 provider 的模型声明 `input: [text, image]`。
+> **DeepSeek 的 `deepseek-v4-flash` 和 `deepseek-v4-pro` 都是纯文本模型**，rc.8 的内置 `deepseek-official` 路由也没有自带任何视觉模型。用它们的话截图根本进不了上下文（dsh 会在发请求前拒掉），所以插件会跳过截图并告诉你怎么换：在「设置 → 模型」加一个 Anthropic / OpenAI 等 catalog provider 选视觉模型，或给自定义 provider 的模型声明 `input: [text, image]`。注意**设置页填不了模态** —— 加完模型要点「打开配置文件」，在 `settings.yaml` 里手工补这个字段（`llm-deepseek` 下叫 `inputModalities`）。
 
 装好后可以在 **设置 → 插件 → 插件配置 → 截图反馈** 那张卡片上直接调参（显示器、各种等待时间、两个默认关闭的自动截图时机等），存完免重启即生效。完整字段表与工作原理见 [dsh-plugin/README.zh.md](dsh-plugin/README.zh.md)。
 

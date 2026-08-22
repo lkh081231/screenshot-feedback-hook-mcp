@@ -192,6 +192,9 @@ dsh 的**插件配置**标签页渲染的是两份账本的交集：Host 服务�
 
 dsh 只有在**当前这条确切路由**声明了图片输入（`ctx.llm.resolveModelInfo(...).inputModalities`）时才会把图片放进对话 —— 和内置 `read_image` 工具是同一道闸。在 dsh `v0.1.0-rc.8` 上，内置的 `deepseek-official` 路由只公布 `deepseek-v4-flash` 和 `deepseek-v4-pro`，**两者都是纯文本模型**。
 
+> [!IMPORTANT]
+> **设置页声明不了模态。**「设置 → 模型」的模型卡片只能编辑 `id` / 名称 / 上下文窗口 / 最大输出，没有模态字段 —— 在那里新加的模型一律按**纯文本**处理，本插件会拒绝截图。加完自定义模型后，请点该页的**「打开配置文件」**，在 `settings.yaml` 里手工给这条模型补上 `input: [text, image]`（`llm-deepseek` 下的字段名是 `inputModalities: [text, image]`）。手写的字段不会被之后在设置页里的编辑抹掉。
+
 拿到支持图片的路由有三条路：
 
 1. 在**设置 → 模型**里添加 Anthropic / OpenAI 等 catalog provider，选它的视觉模型。

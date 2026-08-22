@@ -175,6 +175,9 @@ A failing screenshot never blocks anything — it is logged and the tool pipelin
 
 dsh only puts an image into the conversation when the exact route declares image input (`ctx.llm.resolveModelInfo(...).inputModalities`) — the same gate as the built-in `read_image` tool. On dsh `v0.1.0-rc.8`, the built-in `deepseek-official` route publishes only `deepseek-v4-flash` and `deepseek-v4-pro`, and **both are text-only**.
 
+> [!IMPORTANT]
+> **The Settings page cannot declare modalities.** The model card under **Settings → Models** only edits `id` / name / context window / max tokens — there is no modality field, so any model you add there is treated as **text-only** and this plugin refuses to capture. After adding a custom model, click **Open config file** on that page and add the modality to it by hand in `settings.yaml`: `input: [text, image]` (or `inputModalities: [text, image]` under `llm-deepseek`). Hand-written fields survive later edits made from the Settings page.
+
 To get an image-capable route:
 
 1. Add an Anthropic/OpenAI-style catalog provider under **Settings → Models** and pick one of its vision models.
