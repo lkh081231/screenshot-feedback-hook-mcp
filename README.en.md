@@ -81,7 +81,7 @@ Requires dsh ≥ `v0.1.0-rc.8`, pnpm on PATH, the Python package ≥ 0.3.0, the 
 > **Plugin 0.1.0 is broken: installing it makes every tool call in that profile fail**, not just screenshots. Upgrade to ≥ 0.1.1 — steps in [dsh-plugin/README.md](dsh-plugin/README.md#upgrading-from-010-read-this).
 
 > [!IMPORTANT]
-> **DeepSeek's `deepseek-v4-flash` and `deepseek-v4-pro` are both text-only**, and the built-in `deepseek-official` route on rc.8 ships no vision model at all. With those, a screenshot never reaches the conversation (dsh rejects it before the request), so the plugin skips the capture and tells you how to switch: add an Anthropic/OpenAI-style catalog provider under Settings → Models and pick a vision model, or declare `input: [text, image]` for your custom provider's model.
+> **DeepSeek's `deepseek-v4-flash` and `deepseek-v4-pro` are both text-only**, and the built-in `deepseek-official` route on rc.8 ships no vision model at all. With those, a screenshot never reaches the conversation (dsh rejects it before the request), so the plugin skips the capture and tells you how to switch: add an Anthropic/OpenAI-style catalog provider under Settings → Models and pick a vision model, or declare `input: [text, image]` for your custom provider's model. Note that **the Settings page has no modality field** — after adding the model, click *Open config file* and add it by hand in `settings.yaml` (`inputModalities` under `llm-deepseek`).
 
 Once installed, tune it from the card at **Settings → Plugins → Plugin configuration → Screenshot feedback** (monitor, the various delays, the two automatic timings that ship disabled); saves take effect without a restart. The full field table and how it works are in [dsh-plugin/README.md](dsh-plugin/README.md).
 
