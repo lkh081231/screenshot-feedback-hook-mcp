@@ -20,6 +20,17 @@ function execOf(name: string, agent: FakeAgent): ToolExecution {
   return { name, agent: agent.agent, signal: new AbortController().signal } as unknown as ToolExecution
 }
 
+/** `ToolExecution.agent` 是可选的；没有 agent 时闸门必然给出 unresolved 类拒绝。 */
+function agentlessExecOf(name: string): ToolExecution {
+  return { name, signal: new AbortController().signal } as unknown as ToolExecution
+}
+
+/** 决策上那条附加消息的首块文字。 */
+function contextText(decision: PostToolDecision): string {
+  const block = decision.additionalContexts?.[0]?.content[0]
+  return block?.type === 'text' ? block.text : ''
+}
+
 const success = { isError: false } as unknown as ToolExecutionResult
 const failure = { isError: true } as unknown as ToolExecutionResult
 const accept = async (): Promise<PostToolDecision> => ({ kind: 'accept' })
@@ -113,6 +124,64 @@ describe('automatic capture after tools', () => {
 
     const second = await postExecute(harness)(execOf('edit', agent), success, accept)
     expect(second.additionalContexts).toBeUndefined()
+    expect(harness.spawns).toHaveLength(0)
+  })
+
+  it('also warns only once when the execution carries no agent', async () => {
+    const harness = createHarness()
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
+    // 没有 agent 就没有可挂载的 WeakSet 键；以前这条路径每次触发都重新注入同一段文字
+    const first = await postExecute(harness)(agentlessExecOf('edit'), success, accept)
+    expect(contextText(first)).toContain('could not be resolved')
+
+    const second = await postExecute(harness)(agentlessExecOf('edit'), success, accept)
+    expect(second.additionalContexts).toBeUndefined()
+  })
+
+  it('treats a model-catalog failure as transient instead of as a text-only model', async () => {
+    const harness = createHarness()
+    harness.resolveFails = true
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
+    const agent = createAgent()
+
+    const during = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(during).toEqual({ kind: 'accept' })
+    expect(harness.warnings.join(' ')).toContain('temporarily unreachable')
+    expect(harness.spawns).toHaveLength(0)
+
+    // 关键：瞬时故障不该吃掉提醒额度，否则唯一可执行的那条建议被永久压制
+    harness.resolveFails = false
+    harness.modalities = ['text']
+    const after = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(contextText(after)).toContain('does not declare image input')
+  })
+
+  it('budgets each rejection reason separately, so the actionable one still lands', async () => {
+    const harness = createHarness()
+    harness.llmMounted = false
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
+    const agent = createAgent()
+
+    const unresolved = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(contextText(unresolved)).toContain('could not be resolved')
+
+    // 合成一笔账的话，先撞上的 unresolved 会把「换个支持图片的模型」永久挤掉
+    harness.llmMounted = true
+    harness.modalities = ['text']
+    const textOnly = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(contextText(textOnly)).toContain('does not declare image input')
+  })
+
+  it('stays silent about the gate when the deployment turned warnings off', async () => {
+    const harness = createHarness()
+    harness.modalities = ['text']
+    applyAutoCapture(harness.ctx, makeSource({
+      autoAfterTools: true,
+      autoAfterToolsDelayMs: 0,
+      warnOnTextOnlyModel: false,
+    }))
+    const decision = await postExecute(harness)(execOf('edit', createAgent()), success, accept)
+    expect(decision.additionalContexts).toBeUndefined()
     expect(harness.spawns).toHaveLength(0)
   })
 })

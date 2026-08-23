@@ -137,7 +137,7 @@ dsh --profile web --dump-config   # 应当出现 `# == dsh-screenshot-feedback-h
 | `maxEdge` | `1568` | ✓ | 最长边像素。**不要超过 2000**，附件库会拒绝更大的图。 |
 | `targetKb` | `80` | ✓ | 字节预算。dsh 没有 Claude Code 那条 25k token 的 MCP 输出上限，要看清细节可以调大。 |
 | `captureTimeoutMs` | `30000` | ✓ | 单次截图超时（在等待时间之外另算）。 |
-| `warnOnTextOnlyModel` | `true` | ✓ | 纯文本模型时，每会话提示一次该怎么换模型。 |
+| `warnOnTextOnlyModel` | `true` | ✓ | 闸门拒绝时提示该怎么办（纯文本模型 / 路由解析不出来）。每种原因每会话一次。 |
 | `autoAfterTools` | `false` | ✓ | 命中的工具执行完就截图。 |
 | `autoAfterToolsMatcher` | `edit\|write\|str_replace_editor` | ✓ | 工具名匹配。纯 `[A-Za-z0-9_|]+` 按字面量精确交替，其余按正则。 |
 | `autoAfterToolsDelayMs` | `1500` | ✓ | 自动截图前的等待。 |

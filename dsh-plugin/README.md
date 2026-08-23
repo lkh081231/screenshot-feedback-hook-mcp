@@ -133,7 +133,7 @@ The bundle inserts one plugin row with id `screenshot-feedback` — the right pl
 | `maxEdge` | `1568` | ✓ | Longest edge in pixels. **Do not exceed 2000** — the attachment store refuses larger images. |
 | `targetKb` | `80` | ✓ | Byte budget. dsh has no 25k-token MCP output cap, so raise it when you need more detail. |
 | `captureTimeoutMs` | `30000` | ✓ | Per-capture timeout, on top of the configured delay. |
-| `warnOnTextOnlyModel` | `true` | ✓ | Explain once per session how to switch to an image-capable model. |
+| `warnOnTextOnlyModel` | `true` | ✓ | Explain how to reach an image-capable model when the gate refuses. Once per reason, per session. |
 | `autoAfterTools` | `false` | ✓ | Capture after a matching tool call. |
 | `autoAfterToolsMatcher` | `edit\|write\|str_replace_editor` | ✓ | Tool names. A plain `[A-Za-z0-9_|]+` pattern is exact alternation; anything else is a regex. |
 | `autoAfterToolsDelayMs` | `1500` | ✓ | Wait before the automatic capture. |

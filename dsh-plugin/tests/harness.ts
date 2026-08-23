@@ -33,6 +33,10 @@ export interface Harness {
   tools: Map<string, ToolDefinition>
   /** 当前路由声明的输入模态；undefined = 未知（按不支持处理）。 */
   modalities: string[] | undefined
+  /** llm 服务是否挂载；false 时闸门给出 unresolved 类拒绝。 */
+  llmMounted: boolean
+  /** 让模型能力查询以瞬时故障失败 —— 这不是「模型不支持图片」。 */
+  resolveFails: boolean
   /** 让下一次截图失败。 */
   failCapture: boolean
   /** 覆盖 CLI 的 stdout，用来造「非 JSON」「空输出」这类失败。 */
@@ -58,6 +62,8 @@ export function createHarness(): Harness {
     warnings: [],
     tools: new Map(),
     modalities: ['text', 'image'],
+    llmMounted: true,
+    resolveFails: false,
     failCapture: false,
     stdout: undefined,
     failSave: false,
@@ -99,7 +105,13 @@ export function createHarness(): Harness {
         }
       }
       if (key === 'llm') {
-        return { resolveModelInfo: async () => ({ id: 'm', name: 'm', inputModalities: harness.modalities }) }
+        if (harness.llmMounted !== true) return undefined
+        return {
+          resolveModelInfo: async () => {
+            if (harness.resolveFails === true) throw new Error('the model catalog is temporarily unreachable')
+            return { id: 'm', name: 'm', inputModalities: harness.modalities }
+          },
+        }
       }
       return undefined
     },

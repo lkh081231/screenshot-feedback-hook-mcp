@@ -17,7 +17,8 @@ import { captureScreenshot } from './capture.js'
 import type { Config, ConfigSource } from './config.js'
 import { imageValueFromRef, pluginMessage, pluginTextMessage, screenshotContent } from './content.js'
 import type { ScreenshotValue } from './content.js'
-import { assertImageCapableRoute } from './route.js'
+import { probeImageCapableRoute } from './route.js'
+import type { RouteProbeKind } from './route.js'
 
 /** 只由字母数字下划线和竖线组成的 matcher 按字面量交替处理，其余按正则 —— 与 CC hook matcher 同语义。 */
 const LITERAL_MATCHER = /^[A-Za-z0-9_|]+$/
@@ -49,20 +50,53 @@ export function withAdditionalContext(decision: PostToolDecision, message: UserM
   return { ...decision, additionalContexts: [...decision.additionalContexts ?? [], message] }
 }
 
-/** 自动路径的共享状态：谁已经被提醒过换模型、谁在哪个 turn 已经截过。 */
+/** 自动路径的共享状态：谁为哪种原因被提醒过、谁在哪个 turn 已经截过。 */
 interface AutoState {
-  warned: WeakSet<Agent>
+  /**
+   * 每种拒绝原因各记一笔账。合成一笔的话，先撞上的「路由解析不出来」会把真正可
+   * 执行的「换个支持图片的模型」永久挤掉 —— 后者是本插件产出的最有用的一段文字。
+   */
+  warned: Map<RouteProbeKind, WeakSet<Agent>>
+  /** agent 为 undefined 时没有可挂载的键，只能按插件实例记一次。 */
+  warnedWithoutAgent: Set<RouteProbeKind>
   steeredTurn: WeakMap<Agent, number>
 }
 
 /**
- * 自动路径下证明路由支持图片；不支持时按配置最多提醒一次。
+ * 领取「这一类原因、这个 agent」的一次提醒额度。
+ * @param state - 共享状态。
+ * @param kind - 拒绝原因类别。
+ * @param agent - 当前 agent；undefined 时按插件实例记账。
+ * @returns 领到了就是 true；已经提醒过就是 false。
+ */
+function claimWarning(state: AutoState, kind: RouteProbeKind, agent: Agent | undefined): boolean {
+  if (agent === undefined) {
+    if (state.warnedWithoutAgent.has(kind)) return false
+    state.warnedWithoutAgent.add(kind)
+    return true
+  }
+  let seen = state.warned.get(kind)
+  if (seen === undefined) {
+    seen = new WeakSet()
+    state.warned.set(kind, seen)
+  }
+  if (seen.has(agent)) return false
+  seen.add(agent)
+  return true
+}
+
+/**
+ * 自动路径下证明路由支持图片；不支持时按配置、按原因类别各提醒一次。
+ *
+ * 故意**不 catch**：`probeImageCapableRoute` 把「拒绝」做成返回值之后，还能抛出来
+ * 的只有瞬时故障（模型目录查不通、被取消）。那既不该冒充「模型是纯文本」，也不该
+ * 吃掉提醒额度 —— 让它上抛到两个监听器各自的兜底 catch 里记日志。
  * @param ctx - 插件上下文。
  * @param config - 插件配置。
  * @param state - 共享状态。
  * @param agent - 当前 agent。
  * @param signal - 取消信号。
- * @returns 可用时为 undefined；不可用时为「要不要提醒」的消息（或 null 表示静默跳过）。
+ * @returns 可用时为 undefined；不可用时为要提醒的消息（或 null 表示静默跳过）。
  */
 async function gateOrWarning(
   ctx: Context,
@@ -71,18 +105,12 @@ async function gateOrWarning(
   agent: Agent | undefined,
   signal: AbortSignal,
 ): Promise<UserMessage | null | undefined> {
-  try {
-    await assertImageCapableRoute(ctx, agent, signal)
-    return undefined
-  } catch (error: unknown) {
-    if (!config.warnOnTextOnlyModel) return null
-    // 每会话只提醒一次：自动时机每轮都触发，重复同一段文字纯属烧 token
-    if (agent !== undefined) {
-      if (state.warned.has(agent)) return null
-      state.warned.add(agent)
-    }
-    return pluginTextMessage(error instanceof Error ? error.message : String(error))
-  }
+  const probe = await probeImageCapableRoute(ctx, agent, signal)
+  if (probe.ok) return undefined
+  if (!config.warnOnTextOnlyModel) return null
+  // 每种原因每会话只提醒一次：自动时机每轮都触发，重复同一段文字纯属烧 token
+  if (!claimWarning(state, probe.kind, agent)) return null
+  return pluginTextMessage(probe.reason)
 }
 
 /**
@@ -106,7 +134,7 @@ async function captureValue(ctx: Context, config: Config, delayMs: number, signa
  */
 export function applyAutoCapture(ctx: Context, source: ConfigSource): void {
   const logger = ctx.logger('screenshot-feedback')
-  const state: AutoState = { warned: new WeakSet(), steeredTurn: new WeakMap() }
+  const state: AutoState = { warned: new Map(), warnedWithoutAgent: new Set(), steeredTurn: new WeakMap() }
 
   ctx.on('tools/post-execute', async (exec, result, next) => {
     const decision = await next()
