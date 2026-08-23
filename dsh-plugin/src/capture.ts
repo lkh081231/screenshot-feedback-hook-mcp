@@ -47,6 +47,27 @@ const STDERR_CAP = 16 * 1024
 /** 子进程 SIGTERM → SIGKILL 的宽限期。 */
 const GRACE_MS = 5_000
 
+/**
+ * Node 定时器上限。`AbortSignal.timeout` 对非整数/负数/超限值一律抛
+ * `ERR_OUT_OF_RANGE`，接近上限时又会静默把时长压成 1ms。故意在本地重述而不是从
+ * `@deepseek-ai/dsh-timeout` import —— 它不是本包的 peer，会让 packaging.spec 红。
+ */
+export const MAX_TIMER_DELAY_MS = 2_147_483_647
+
+/**
+ * 把「超时预算 + 等待时间」归一成 `AbortSignal.timeout` 一定收得下的整数毫秒。
+ * 配置里这几个毫秒字段只有下界、没有 `.step(1)` 也没有上界，设置页里敲一个
+ * `30000.5` 就能让每一次截图在 spawn 之前崩掉。
+ * @param captureTimeoutMs - 配置的单次超时。
+ * @param delayMs - 本次截图前的等待。
+ * @returns [1, {@link MAX_TIMER_DELAY_MS}] 区间内的整数。
+ */
+export function captureDeadlineMs(captureTimeoutMs: number, delayMs: number): number {
+  const total = captureTimeoutMs + delayMs
+  if (Number.isNaN(total)) return MAX_TIMER_DELAY_MS
+  return Math.min(Math.max(Math.ceil(total), 1), MAX_TIMER_DELAY_MS)
+}
+
 let sequence = 0
 
 /** 每次截图一个独立文件名：同一轮里可能有并发调用。 */
@@ -156,7 +177,8 @@ export async function captureScreenshot(
 
   const executable = await resolveCommand(ctx, argv[0] as string)
   // 截图本身要等 delayMs，超时预算必须把它算进去，否则慢渲染场景永远超时
-  const timeout = AbortSignal.timeout(config.captureTimeoutMs + delayMs)
+  const deadlineMs = captureDeadlineMs(config.captureTimeoutMs, delayMs)
+  const timeout = AbortSignal.timeout(deadlineMs)
   const signal = AbortSignal.any([options.signal, timeout])
 
   const handle = ctx.subprocess.spawn({
@@ -174,7 +196,8 @@ export async function captureScreenshot(
   const outcome = await handle.done
   const stdout = handle.collected.stdout?.readFrom(0).text ?? ''
   const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
-  if (timeout.aborted) throw new Error(`the screenshot command timed out after ${String(config.captureTimeoutMs + delayMs)}ms`)
+  // 打印定时器真正收到的那个数：归一之后它未必等于 captureTimeoutMs + delayMs
+  if (timeout.aborted) throw new Error(`the screenshot command timed out after ${String(deadlineMs)}ms`)
   const parsed = parseCaptureJson(stdout, stderr, outcome.exitCode)
 
   const data = await readFile(parsed.path as string)
@@ -203,7 +226,7 @@ export async function listMonitors(ctx: Context, config: Config, signal: AbortSi
     cwd: config.cwd.length > 0 ? config.cwd : process.cwd(),
     stdio: { stdin: 'ignore', stdout: { maxBytes: STDOUT_CAP }, stderr: { maxBytes: STDERR_CAP } },
     graceMs: GRACE_MS,
-    signal: AbortSignal.any([signal, AbortSignal.timeout(config.captureTimeoutMs)]),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(captureDeadlineMs(config.captureTimeoutMs, 0))]),
   })
   const outcome = await handle.done
   const stdout = handle.collected.stdout?.readFrom(0).text ?? ''

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { captureArgv, parseCaptureJson } from '../src/capture.js'
+import { MAX_TIMER_DELAY_MS, captureArgv, captureDeadlineMs, parseCaptureJson } from '../src/capture.js'
 import { makeConfig } from './make-config.js'
 
 const config = makeConfig({})
@@ -21,6 +21,31 @@ describe('captureArgv', () => {
     expect(captureArgv(direct, '/tmp/shot.jpg', 0, 0).slice(0, 3)).toEqual([
       'screenshot-feedback-hook-mcp', 'capture', '--json',
     ])
+  })
+})
+
+describe('captureDeadlineMs', () => {
+  it('adds the wait to the budget in the ordinary case', () => {
+    expect(captureDeadlineMs(30_000, 1_500)).toBe(31_500)
+  })
+
+  it('rounds a fractional config value up, which AbortSignal.timeout would have rejected', () => {
+    // 设置卡片的 numberField 只查 Number.isFinite，30000.5 是合法配置
+    expect(captureDeadlineMs(30_000.5, 0)).toBe(30_001)
+  })
+
+  it('floors at 1ms instead of handing a negative to the timer', () => {
+    expect(captureDeadlineMs(1, -5_000)).toBe(1)
+    expect(captureDeadlineMs(-Infinity, 0)).toBe(1)
+  })
+
+  it('ceilings at the Node timer limit', () => {
+    expect(captureDeadlineMs(5e9, 0)).toBe(MAX_TIMER_DELAY_MS)
+    expect(captureDeadlineMs(Infinity, 0)).toBe(MAX_TIMER_DELAY_MS)
+  })
+
+  it('treats NaN as the ceiling rather than propagating it into the timer', () => {
+    expect(captureDeadlineMs(NaN, 0)).toBe(MAX_TIMER_DELAY_MS)
   })
 })
 
