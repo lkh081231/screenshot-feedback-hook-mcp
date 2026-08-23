@@ -8,7 +8,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { GenericCallView } from '@deepseek-ai/dsh-tools'
+import type { GenericCallView, InferValue } from '@deepseek-ai/dsh-tools'
 import { captureScreenshot, listMonitors } from './capture.js'
 import type { ConfigSource } from './config.js'
 import { imageValueFromRef, screenshotContent } from './content.js'
@@ -42,7 +42,11 @@ const SCREENSHOT_OUTPUT = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    path: { type: 'string', required: true },
+    path: {
+      type: 'string',
+      description: 'Absolute path of the saved screenshot. The file is kept on disk, so you can read it again.',
+      required: true,
+    },
     warnings: { type: 'array', items: { type: 'string' }, required: true },
     image: {
       type: 'object',
@@ -59,6 +63,17 @@ const SCREENSHOT_OUTPUT = {
     },
   },
 } as const
+
+/**
+ * 「schema 与规范值一一对应」由编译器兑现，而不是靠上面那句注释。工具注册表在
+ * `createSuccessResult` 里会拿这份 schema 校验规范值，两边任何一侧单方面增删字段都
+ * 是只在生产里炸的错 —— 「schema 声明了 path、实现却把那个文件删了」正是这么来的。
+ * 改任一侧而不改另一侧，这里直接编译失败。
+ */
+const _outputMatchesValue: ScreenshotValue extends InferValue<typeof SCREENSHOT_OUTPUT>
+  ? InferValue<typeof SCREENSHOT_OUTPUT> extends ScreenshotValue ? true : never
+  : never = true
+void _outputMatchesValue
 
 /**
  * 注册两个工具。

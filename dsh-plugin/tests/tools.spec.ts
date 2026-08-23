@@ -1,4 +1,6 @@
+import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { validateJsonSchemaValue } from '@deepseek-ai/dsh-tools'
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { imageValueFromRef, refFromImageValue, screenshotContent } from '../src/content.js'
 import { MAX_MODEL_DELAY_MS, applyTools, clampModelDelayMs } from '../src/tools.js'
@@ -42,6 +44,18 @@ describe('take_screenshot', () => {
       .rejects.toThrow(/does not declare image input/)
     // 拒绝时不该已经截过一张没人能看的图
     expect(harness.spawns).toHaveLength(0)
+  })
+
+  it('returns a value the registry will accept against its own output schema', async () => {
+    const harness = createHarness()
+    applyTools(harness.ctx, makeSource({}))
+    const tool = harness.tools.get('take_screenshot')
+    const value = await tool?.execute({}, runContext()) as ScreenshotValue
+    // 工具注册表在 createSuccessResult 里跑的就是这个校验器；additionalProperties:false
+    // 会把「schema 与规范值不一致」变成运行时错误，而单测直接调 execute 是绕过它的
+    expect(validateJsonSchemaValue(tool?.output.schema as never, value, 'value')).toEqual([])
+    // path 现在是真话：文件保留在盘上
+    expect(existsSync(value.path)).toBe(true)
   })
 
   it('caps a model-supplied delay instead of letting it blow past the capture timeout', async () => {
