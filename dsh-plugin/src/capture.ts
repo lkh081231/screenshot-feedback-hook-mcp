@@ -6,7 +6,8 @@
  * @module dsh-screenshot-feedback-hook-mcp/capture
  */
 
-import { readFile, rm } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { readFile, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -18,7 +19,10 @@ import type { Config } from './config.js'
 
 /** 一次成功截图的结果。 */
 export interface CaptureResult {
-  /** 截图落盘的绝对路径（诊断用；图片本身走 attachment）。 */
+  /**
+   * 截图落盘的绝对路径。成功时文件**保留**在盘上，模型可以照着这个路径再读一次；
+   * 失败时没有任何人拿得到它，文件已被清掉。留存量由 {@link KEEP_RECENT_SHOTS} 兜住。
+   */
   path: string
   /** 已持久化的图片引用，可以直接放进 `{type:'image'}` 内容块。 */
   ref: ImageAttachmentRef
@@ -47,12 +51,75 @@ const STDERR_CAP = 16 * 1024
 /** 子进程 SIGTERM → SIGKILL 的宽限期。 */
 const GRACE_MS = 5_000
 
+/**
+ * Node 定时器上限。`AbortSignal.timeout` 对非整数/负数/超限值一律抛
+ * `ERR_OUT_OF_RANGE`，接近上限时又会静默把时长压成 1ms。故意在本地重述而不是从
+ * `@deepseek-ai/dsh-timeout` import —— 它不是本包的 peer，会让 packaging.spec 红。
+ */
+export const MAX_TIMER_DELAY_MS = 2_147_483_647
+
+/**
+ * 把「超时预算 + 等待时间」归一成 `AbortSignal.timeout` 一定收得下的整数毫秒。
+ * 配置里这几个毫秒字段只有下界、没有 `.step(1)` 也没有上界，设置页里敲一个
+ * `30000.5` 就能让每一次截图在 spawn 之前崩掉。
+ * @param captureTimeoutMs - 配置的单次超时。
+ * @param delayMs - 本次截图前的等待。
+ * @returns [1, {@link MAX_TIMER_DELAY_MS}] 区间内的整数。
+ */
+export function captureDeadlineMs(captureTimeoutMs: number, delayMs: number): number {
+  const total = captureTimeoutMs + delayMs
+  if (Number.isNaN(total)) return MAX_TIMER_DELAY_MS
+  return Math.min(Math.max(Math.ceil(total), 1), MAX_TIMER_DELAY_MS)
+}
+
+/** 本插件独占的截图目录；只有这里的 `shot-*.jpg` 会被修剪。 */
+const SHOT_DIR = join(tmpdir(), 'dsh-screenshot-feedback')
+
+/**
+ * 保留最近几张截图。`path` 是工具输出的一部分、模型可以照着再读一次，所以成功的
+ * 截图不能删；但也不能让 tmpdir 无限长。这是安全兜底而不是策略旋钮，故意用常量：
+ * 加成配置字段要连带改 config.spec 的整对象断言、CARD_FIELDS、两份 locales 和两份
+ * README，代价远大于收益。
+ */
+const KEEP_RECENT_SHOTS = 20
+
 let sequence = 0
 
-/** 每次截图一个独立文件名：同一轮里可能有并发调用。 */
+/**
+ * 每次截图一个独立文件名：同一轮里可能有并发调用，而且文件现在会留在盘上 ——
+ * 只靠 pid + 序号，dsh 重启后 pid 复用就会盖掉别人保留着的截图。
+ */
 function nextOutputPath(): string {
   sequence += 1
-  return join(tmpdir(), 'dsh-screenshot-feedback', `shot-${process.pid}-${sequence}.jpg`)
+  return join(SHOT_DIR, `shot-${process.pid}-${String(sequence)}-${randomUUID()}.jpg`)
+}
+
+/**
+ * 尽力删掉一个文件。`finally` 里抛出会**替换掉原始错误**（`rm` 的 force 吞 ENOENT
+ * 但仍会抛 EPERM/EBUSY），正好把新写的超时/取消消息盖掉，所以一律吞。
+ * @param path - 要删的绝对路径。
+ */
+async function removeQuietly(path: string): Promise<void> {
+  await rm(path, { force: true }).catch(() => undefined)
+}
+
+/**
+ * 把截图目录修剪到最近 {@link KEEP_RECENT_SHOTS} 张。全程尽力而为、绝不抛：目录还
+ * 没建、或并发的另一次修剪抢先删掉了某个文件，都不值得打扰调用方。
+ */
+async function pruneOldShots(): Promise<void> {
+  try {
+    const names = (await readdir(SHOT_DIR)).filter(name => name.startsWith('shot-') && name.endsWith('.jpg'))
+    if (names.length <= KEEP_RECENT_SHOTS) return
+    const dated = await Promise.all(names.map(async (name) => {
+      const full = join(SHOT_DIR, name)
+      return { full, mtimeMs: (await stat(full)).mtimeMs }
+    }))
+    dated.sort((a, b) => b.mtimeMs - a.mtimeMs)
+    await Promise.all(dated.slice(KEEP_RECENT_SHOTS).map(entry => removeQuietly(entry.full)))
+  } catch {
+    // 修剪失败不影响这一次截图，下一次还会再试
+  }
 }
 
 /**
@@ -154,9 +221,12 @@ export async function captureScreenshot(
   const outPath = nextOutputPath()
   const argv = captureArgv(config, outPath, monitor, delayMs)
 
+  // 已经取消了就别再付 PATH 查找和拉起进程的钱
+  if (options.signal.aborted) throw new Error('the screenshot was cancelled before it started')
   const executable = await resolveCommand(ctx, argv[0] as string)
   // 截图本身要等 delayMs，超时预算必须把它算进去，否则慢渲染场景永远超时
-  const timeout = AbortSignal.timeout(config.captureTimeoutMs + delayMs)
+  const deadlineMs = captureDeadlineMs(config.captureTimeoutMs, delayMs)
+  const timeout = AbortSignal.timeout(deadlineMs)
   const signal = AbortSignal.any([options.signal, timeout])
 
   const handle = ctx.subprocess.spawn({
@@ -171,21 +241,35 @@ export async function captureScreenshot(
     signal,
   })
 
-  const outcome = await handle.done
-  const stdout = handle.collected.stdout?.readFrom(0).text ?? ''
-  const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
-  if (timeout.aborted) throw new Error(`the screenshot command timed out after ${String(config.captureTimeoutMs + delayMs)}ms`)
-  const parsed = parseCaptureJson(stdout, stderr, outcome.exitCode)
-
-  const data = await readFile(parsed.path as string)
-  let ref: ImageAttachmentRef
+  let parsedPath: string | undefined
+  let delivered = false
   try {
-    ref = await attachments.saveImage({ data, mediaType: 'image/jpeg', name: 'screenshot.jpg' })
+    const outcome = await handle.done
+    // harness 的假 spawn 只给 stdout，`?.` 不能省
+    const stdout = handle.collected.stdout?.readFrom(0).text ?? ''
+    const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
+    // 取消比超时更具体，先判它；两个信号相互独立，不会同时为真地误报。
+    // 不做这两句分类的话，取消会伪装成「produced no output (exit code null)」。
+    if (options.signal.aborted) throw new Error('the screenshot was cancelled before it finished')
+    // 打印定时器真正收到的那个数：归一之后它未必等于 captureTimeoutMs + delayMs
+    if (timeout.aborted) throw new Error(`the screenshot command timed out after ${String(deadlineMs)}ms`)
+    const parsed = parseCaptureJson(stdout, stderr, outcome.exitCode)
+    parsedPath = parsed.path as string
+    const data = await readFile(parsedPath)
+    const ref = await attachments.saveImage({ data, mediaType: 'image/jpeg', name: 'screenshot.jpg' })
+    delivered = true
+    return { path: parsedPath, ref, warnings: parsed.warnings ?? [] }
   } finally {
-    // 字节已经进了内容寻址的附件库，磁盘上的临时文件没有留存价值
-    await rm(parsed.path as string, { force: true }).catch(() => undefined)
+    // 成功时文件留着：`path` 是工具输出的一部分，模型可以照着再读一次。失败时没有
+    // 任何人拿得到这个路径，留在盘上纯属垃圾 —— 两个候选路径都清，因为 Python 侧
+    // 的 Path.resolve() 在 Windows 上会把 os.tmpdir() 的 8.3 短名展开成长名，
+    // 「文本不等才删第二个」那种守卫的行为与直觉正好相反。
+    if (delivered) await pruneOldShots()
+    else {
+      await removeQuietly(outPath)
+      if (parsedPath !== undefined) await removeQuietly(parsedPath)
+    }
   }
-  return { path: parsed.path as string, ref, warnings: parsed.warnings ?? [] }
 }
 
 /**
@@ -198,15 +282,20 @@ export async function captureScreenshot(
 export async function listMonitors(ctx: Context, config: Config, signal: AbortSignal): Promise<string> {
   const argv = [config.command, ...config.args, 'monitors']
   const executable = await resolveCommand(ctx, argv[0] as string)
+  const deadlineMs = captureDeadlineMs(config.captureTimeoutMs, 0)
+  const timeout = AbortSignal.timeout(deadlineMs)
   const handle = ctx.subprocess.spawn({
     argv: [executable, ...argv.slice(1)],
     cwd: config.cwd.length > 0 ? config.cwd : process.cwd(),
     stdio: { stdin: 'ignore', stdout: { maxBytes: STDOUT_CAP }, stderr: { maxBytes: STDERR_CAP } },
     graceMs: GRACE_MS,
-    signal: AbortSignal.any([signal, AbortSignal.timeout(config.captureTimeoutMs)]),
+    signal: AbortSignal.any([signal, timeout]),
   })
   const outcome = await handle.done
   const stdout = handle.collected.stdout?.readFrom(0).text ?? ''
+  // 与 captureScreenshot 同理：不分类的话，取消和超时都会伪装成「exit code null」
+  if (signal.aborted) throw new Error('listing monitors was cancelled')
+  if (timeout.aborted) throw new Error(`listing monitors timed out after ${String(deadlineMs)}ms`)
   if (outcome.exitCode !== 0 || stdout.trim().length === 0) {
     const stderr = handle.collected.stderr?.readFrom(0).text ?? ''
     throw new Error(`listing monitors failed (${stderr.trim() || `exit code ${String(outcome.exitCode)}`})`)

@@ -39,6 +39,13 @@ git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
 ```
 
+### What changed in 0.2.0
+
+- **Screenshots now stay on disk.** `take_screenshot`'s result declares a `path`, and that file is now a real, readable one — you can read it again. Before 0.2.0 the file was deleted before the tool returned, so the declared `path` always pointed at nothing. The plugin keeps the 20 most recent shots under the temp directory and prunes older ones; a failed capture leaves nothing behind.
+- **`delay_ms` is bounded.** A model asking for a very long wait can no longer push past the operator's `captureTimeoutMs`. The ceiling is 10000 ms, or the configured `delayMs` if that is larger, and a capped request says so in the result's warnings.
+- **The image-capability gate tells its two refusals apart.** "This model declares no image input" and "the route could not be resolved" are now budgeted separately, so the first — the one that tells you how to switch models — can no longer be crowded out by the second. A transient failure while querying the model catalog counts as neither; it is logged and skipped.
+- **Cancellation and timeout are reported distinctly** instead of both surfacing as "the screenshot command produced no output".
+
 ### Upgrading from 0.1.0 (read this)
 
 **0.1.0 installed dsh's runtime packages into the profile as ordinary dependencies**, putting a second `@deepseek-ai/dsh-tools` in front of the one dsh itself loads. The damage is not limited to screenshots — **every** tool call in that profile dies with:
@@ -133,7 +140,7 @@ The bundle inserts one plugin row with id `screenshot-feedback` — the right pl
 | `maxEdge` | `1568` | ✓ | Longest edge in pixels. **Do not exceed 2000** — the attachment store refuses larger images. |
 | `targetKb` | `80` | ✓ | Byte budget. dsh has no 25k-token MCP output cap, so raise it when you need more detail. |
 | `captureTimeoutMs` | `30000` | ✓ | Per-capture timeout, on top of the configured delay. |
-| `warnOnTextOnlyModel` | `true` | ✓ | Explain once per session how to switch to an image-capable model. |
+| `warnOnTextOnlyModel` | `true` | ✓ | Explain how to reach an image-capable model when the gate refuses. Once per reason, per session. |
 | `autoAfterTools` | `false` | ✓ | Capture after a matching tool call. |
 | `autoAfterToolsMatcher` | `edit\|write\|str_replace_editor` | ✓ | Tool names. A plain `[A-Za-z0-9_|]+` pattern is exact alternation; anything else is a regex. |
 | `autoAfterToolsDelayMs` | `1500` | ✓ | Wait before the automatic capture. |

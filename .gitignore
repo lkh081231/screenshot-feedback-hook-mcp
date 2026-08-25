@@ -25,6 +25,7 @@ Thumbs.db
 .claude/settings.local.json
 
 # dsh 插件
+node_modules/
 dsh-plugin/node_modules/
 dsh-plugin/lib/
 dsh-plugin/*.tgz

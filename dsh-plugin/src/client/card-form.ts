@@ -240,16 +240,21 @@ export class CardForm<T> {
    */
   async save(): Promise<void> {
     const plan = this.plan()
-    const writes = plan.flatMap(item => item.run === undefined ? [] : [item.run])
-    if (plan.length === 0 || this.saving || writes.length !== plan.length) return
+    if (plan.length === 0 || this.saving || plan.some(item => item.run === undefined)) return
+    // 控件在写入期间**不禁用**（禁用会让光标乱跳），所以草稿随时可能被改。逐条写完
+    // 只清掉「确实落了盘、而且这期间没被重新编辑」的那一条：stage() 每次都塞一个新
+    // 对象，比对象身份就足以认出「还是我刚写下去的那条」。整批 clear() 会把用户在
+    // 保存那几百毫秒里打的字连坐吞掉——恰好是这个方法承诺不做的事。
+    const inFlight = new Map(this.staged)
     this.saving = true
     this.failed = false
     this.publish()
     let landed = true
-    for (const write of writes) {
-      landed = await write() && landed
+    for (const item of plan) {
+      const settled = await (item.run as () => Promise<boolean>)()
+      if (settled && this.staged.get(item.field) === inFlight.get(item.field)) this.staged.delete(item.field)
+      landed = settled && landed
     }
-    if (landed) this.staged.clear()
     this.saving = false
     this.failed = !landed
     this.publish()
@@ -268,7 +273,11 @@ export class CardForm<T> {
         if (this.stored(field)) plan.push({ field, run: () => this.clear(field) })
         continue
       }
-      if (staged.text === spec.format(this.sectionValue(field))) continue
+      // 一次写入白不白写，看的是**用户层里已经有什么**，不是合成后的解析值。拿解析值
+      // 比的话，「把一个恰好等于组合层默认值的覆盖钉进用户层」这件事永远排不进计划，
+      // 而它是 Host 契约明写支持的概念（见本模块头与 SettingsScopeSnapshot.user 的
+      // 注释：字段的**存在**才是覆盖的标志，比较值根本看不见它）。
+      if (this.stored(field) && staged.text === spec.format(this.userLayer()?.[field])) continue
       const write = spec.parse(staged.text)
       if (write === undefined) plan.push({ field, run: undefined })
       else if (write.kind === 'clear') plan.push({ field, run: () => this.clear(field) })

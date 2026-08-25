@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { assertImageCapableRoute, resolveRoute, textOnlyModelMessage } from '../src/route.js'
+import { assertImageCapableRoute, probeImageCapableRoute, resolveRoute, textOnlyModelMessage } from '../src/route.js'
 
 interface FakeRoute { provider?: string; model?: string }
 
@@ -61,6 +61,36 @@ describe('assertImageCapableRoute', () => {
   it('refuses when the llm service is not mounted', async () => {
     await expect(assertImageCapableRoute(fakeCtx(['text', 'image'], false), agent))
       .rejects.toThrow(/could not be resolved/)
+  })
+})
+
+describe('probeImageCapableRoute', () => {
+  const agent = fakeAgent(undefined, { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+
+  it('passes an image-capable route', async () => {
+    expect(await probeImageCapableRoute(fakeCtx(['text', 'image']), agent)).toEqual({ ok: true })
+  })
+
+  it('tags a text-only model as the actionable kind', async () => {
+    const probe = await probeImageCapableRoute(fakeCtx(['text']), agent)
+    expect(probe.ok).toBe(false)
+    expect(probe.ok === false && probe.kind).toBe('text-only')
+    expect(probe.ok === false && probe.reason).toContain('deepseek-v4-flash')
+  })
+
+  it('tags a missing agent and an unmounted llm alike as unresolved', async () => {
+    const noAgent = await probeImageCapableRoute(fakeCtx(['text', 'image']), undefined)
+    expect(noAgent.ok === false && noAgent.kind).toBe('unresolved')
+    const noLlm = await probeImageCapableRoute(fakeCtx(['text', 'image'], false), agent)
+    expect(noLlm.ok === false && noLlm.kind).toBe('unresolved')
+  })
+
+  it('lets a transient catalog failure escape rather than calling it a verdict', async () => {
+    const ctx = {
+      get: () => ({ resolveModelInfo: async () => { throw new Error('temporarily unreachable') } }),
+    } as unknown as Context
+    // 拒绝是返回值，故障是异常 —— 混成一谈就分不清「模型不支持」和「一时查不通」
+    await expect(probeImageCapableRoute(ctx, agent)).rejects.toThrow(/temporarily unreachable/)
   })
 })
 

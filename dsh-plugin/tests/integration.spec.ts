@@ -8,7 +8,7 @@
  */
 
 import { spawn as nodeSpawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
@@ -64,7 +64,7 @@ function realSubprocessCtx(saved: SaveImageAttachment[]): Context {
 }
 
 describe.skipIf(CLI === undefined)('real capture through the Python CLI', () => {
-  it('hands real JPEG bytes to the attachment store and cleans up its temp file', async () => {
+  it('hands real JPEG bytes to the attachment store and keeps the file its path names', async () => {
     const saved: SaveImageAttachment[] = []
     const ctx = realSubprocessCtx(saved)
     const config = makeConfig({ command: CLI, args: [] })
@@ -76,7 +76,8 @@ describe.skipIf(CLI === undefined)('real capture through the Python CLI', () => 
     // JPEG 魔数：真的是一张图，不是一段错误文本
     expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xff, 0xd8, 0xff])
     expect(saved[0]?.mediaType).toBe('image/jpeg')
-    // 字节已经进了内容寻址的附件库，磁盘上不该再留一份
-    expect(existsSync(result.path)).toBe(false)
+    // `path` 是工具输出的一部分，模型可以照着再读一次 —— 文件必须还在
+    expect(existsSync(result.path)).toBe(true)
+    expect(statSync(result.path).size).toBeGreaterThan(1_000)
   }, 60_000)
 })

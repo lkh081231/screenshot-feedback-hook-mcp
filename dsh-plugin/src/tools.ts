@@ -8,7 +8,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { GenericCallView } from '@deepseek-ai/dsh-tools'
+import type { GenericCallView, InferValue } from '@deepseek-ai/dsh-tools'
 import { captureScreenshot, listMonitors } from './capture.js'
 import type { ConfigSource } from './config.js'
 import { imageValueFromRef, screenshotContent } from './content.js'
@@ -18,12 +18,35 @@ import { assertImageCapableRoute } from './route.js'
 /** 手动截图时文字信封的首行。 */
 const MANUAL_HEADLINE = 'Screenshot of the live screen, captured just now.'
 
+/**
+ * 模型可控 `delay_ms` 的默认上限。它是不可信输入，而 dsh 的 schema DSL 表达不了
+ * 数值上下界（`IntegerValueSchemaSpec` 只有 `enum` / `const`），所以上限只能在
+ * 代码里执行、在 `description` 里告诉模型。
+ */
+export const MAX_MODEL_DELAY_MS = 10_000
+
+/**
+ * 把模型给的等待时间钳进 `[0, ceiling]`。
+ * @param requested - 模型给的毫秒数；undefined 表示「用配置默认值」。
+ * @param ceiling - 本次允许的上限。
+ * @returns 钳制后的值；undefined 原样透传。
+ */
+export function clampModelDelayMs(requested: number | undefined, ceiling: number): number | undefined {
+  if (requested === undefined) return undefined
+  if (!Number.isFinite(requested)) return 0
+  return Math.min(Math.max(requested, 0), ceiling)
+}
+
 /** `take_screenshot` 的输出 schema，与 {@link ScreenshotValue} 一一对应。 */
 const SCREENSHOT_OUTPUT = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    path: { type: 'string', required: true },
+    path: {
+      type: 'string',
+      description: 'Absolute path of the saved screenshot. The file is kept on disk, so you can read it again.',
+      required: true,
+    },
     warnings: { type: 'array', items: { type: 'string' }, required: true },
     image: {
       type: 'object',
@@ -40,6 +63,17 @@ const SCREENSHOT_OUTPUT = {
     },
   },
 } as const
+
+/**
+ * 「schema 与规范值一一对应」由编译器兑现，而不是靠上面那句注释。工具注册表在
+ * `createSuccessResult` 里会拿这份 schema 校验规范值，两边任何一侧单方面增删字段都
+ * 是只在生产里炸的错 —— 「schema 声明了 path、实现却把那个文件删了」正是这么来的。
+ * 改任一侧而不改另一侧，这里直接编译失败。
+ */
+const _outputMatchesValue: ScreenshotValue extends InferValue<typeof SCREENSHOT_OUTPUT>
+  ? InferValue<typeof SCREENSHOT_OUTPUT> extends ScreenshotValue ? true : never
+  : never = true
+void _outputMatchesValue
 
 /**
  * 注册两个工具。
@@ -60,7 +94,10 @@ export function applyTools(ctx: Context, source: ConfigSource): void {
       },
       delay_ms: {
         type: 'integer',
-        description: 'Milliseconds to wait before capturing, so a page or drawing finishes rendering. Defaults to the configured delay.',
+        description:
+          'Milliseconds to wait before capturing, so a page or drawing finishes rendering. '
+          + `Capped at ${String(MAX_MODEL_DELAY_MS)} ms, or at the configured default if that is larger; `
+          + 'a capped request says so in warnings. Defaults to the configured delay.',
       },
     },
     output: {
@@ -72,14 +109,23 @@ export function applyTools(ctx: Context, source: ConfigSource): void {
     async execute(args, exec): Promise<ScreenshotValue> {
       // 闸门放在任何 I/O 之前：拒绝时不该已经截了一张没人能看的图
       await assertImageCapableRoute(ctx, exec.agent, exec.signal)
-      const result = await captureScreenshot(ctx, source(), {
-        monitor: args.monitor,
-        delayMs: args.delay_ms,
+      const config = source()
+      // 运维把默认等待调到 20s 时，模型照着要 20s 不该反而只等 10s
+      const ceiling = Math.max(MAX_MODEL_DELAY_MS, config.delayMs)
+      const delayMs = clampModelDelayMs(args.delay_ms, ceiling)
+      const result = await captureScreenshot(ctx, config, {
+        // config.monitor 有 .min(0)，工具参数绕过了它
+        monitor: args.monitor === undefined ? undefined : Math.max(0, args.monitor),
+        delayMs,
         signal: exec.signal,
       })
+      // 钳制必须让模型看见：默默等 10s 而不是它要的 60s，它会把没渲染完当成产出坏了
+      const warnings = args.delay_ms !== undefined && delayMs !== args.delay_ms
+        ? [...result.warnings, `delay_ms was capped at ${String(ceiling)}ms`]
+        : result.warnings
       return {
         path: result.path,
-        warnings: result.warnings,
+        warnings,
         image: imageValueFromRef(result.ref),
       }
     },

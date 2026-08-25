@@ -1,8 +1,8 @@
 /** 假的 Cordis 上下文与 agent，让自动路径可以在没有 dsh 运行时的情况下测。 */
 
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ImageAttachmentRef, SaveImageAttachment } from '@deepseek-ai/dsh-attachment'
@@ -33,8 +33,18 @@ export interface Harness {
   tools: Map<string, ToolDefinition>
   /** 当前路由声明的输入模态；undefined = 未知（按不支持处理）。 */
   modalities: string[] | undefined
+  /** llm 服务是否挂载；false 时闸门给出 unresolved 类拒绝。 */
+  llmMounted: boolean
+  /** 让模型能力查询以瞬时故障失败 —— 这不是「模型不支持图片」。 */
+  resolveFails: boolean
   /** 让下一次截图失败。 */
   failCapture: boolean
+  /** 覆盖 CLI 的 stdout，用来造「非 JSON」「空输出」这类失败。 */
+  stdout: string | undefined
+  /** 让 `saveImage` 拒绝，模拟「子进程已退出、图片还没入仓」那一段里的失败。 */
+  failSave: boolean
+  /** 假子进程在退出前拖多久，用来造超时。 */
+  spawnDelayMs: number
 }
 
 /**
@@ -52,12 +62,20 @@ export function createHarness(): Harness {
     warnings: [],
     tools: new Map(),
     modalities: ['text', 'image'],
+    llmMounted: true,
+    resolveFails: false,
     failCapture: false,
+    stdout: undefined,
+    failSave: false,
+    spawnDelayMs: 0,
   }
 
-  const stdoutOf = (): string => harness.failCapture === true
-    ? JSON.stringify({ error: 'screenshot failed: no display', warnings: [] })
-    : JSON.stringify({ path: shot, bytes: 1234, width: 1568, height: 800, format: 'jpeg', warnings: [] })
+  const stdoutOf = (outPath: string): string => {
+    if (harness.stdout !== undefined) return harness.stdout
+    return harness.failCapture === true
+      ? JSON.stringify({ error: 'screenshot failed: no display', warnings: [] })
+      : JSON.stringify({ path: outPath, bytes: 1234, width: 1568, height: 800, format: 'jpeg', warnings: [] })
+  }
 
   harness.ctx = {
     tools: {
@@ -79,11 +97,21 @@ export function createHarness(): Harness {
     get: (key: string) => {
       if (key === 'attachments') {
         return {
-          saveImage: async (input: SaveImageAttachment) => { harness.saved?.push(input); return FAKE_REF },
+          saveImage: async (input: SaveImageAttachment) => {
+            if (harness.failSave === true) throw new Error('the attachment store rejected the image')
+            harness.saved?.push(input)
+            return FAKE_REF
+          },
         }
       }
       if (key === 'llm') {
-        return { resolveModelInfo: async () => ({ id: 'm', name: 'm', inputModalities: harness.modalities }) }
+        if (harness.llmMounted !== true) return undefined
+        return {
+          resolveModelInfo: async () => {
+            if (harness.resolveFails === true) throw new Error('the model catalog is temporarily unreachable')
+            return { id: 'm', name: 'm', inputModalities: harness.modalities }
+          },
+        }
       }
       return undefined
     },
@@ -91,11 +119,20 @@ export function createHarness(): Harness {
       resolveExecutable: async (command: string) => command,
       spawn: (spec: { argv: readonly string[] }) => {
         harness.spawns?.push([...spec.argv])
-        // 真实 CLI 每次都会写出文件；插件在存进附件库后会删掉它
-        if (harness.failCapture !== true) writeFileSync(shot, 'jpeg-bytes-are-never-decoded-by-the-fake-store')
+        // 照真实 CLI 的样子写到 --out 指定的位置（parent 目录也是它建的），失败路径
+        // 的清理才有东西可断言。`monitors` 子命令没有 --out，退回那个固定路径。
+        const outIndex = spec.argv.indexOf('--out')
+        const outPath = outIndex >= 0 ? spec.argv[outIndex + 1] ?? shot : shot
+        if (harness.failCapture !== true) {
+          mkdirSync(dirname(outPath), { recursive: true })
+          writeFileSync(outPath, 'jpeg-bytes-are-never-decoded-by-the-fake-store')
+        }
+        const delayMs = harness.spawnDelayMs ?? 0
         return {
-          done: Promise.resolve({ exitCode: 0, signal: null }),
-          collected: { stdout: { readFrom: () => ({ text: stdoutOf(), nextOffset: 0, lossy: false }) } },
+          done: delayMs > 0
+            ? new Promise(resolve => setTimeout(() => { resolve({ exitCode: 0, signal: null }) }, delayMs))
+            : Promise.resolve({ exitCode: 0, signal: null }),
+          collected: { stdout: { readFrom: () => ({ text: stdoutOf(outPath), nextOffset: 0, lossy: false }) } },
         }
       },
     },
