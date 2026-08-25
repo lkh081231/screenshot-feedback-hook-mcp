@@ -39,6 +39,13 @@ git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
 ```
 
+### What changed in 0.2.0
+
+- **Screenshots now stay on disk.** `take_screenshot`'s result declares a `path`, and that file is now a real, readable one — you can read it again. Before 0.2.0 the file was deleted before the tool returned, so the declared `path` always pointed at nothing. The plugin keeps the 20 most recent shots under the temp directory and prunes older ones; a failed capture leaves nothing behind.
+- **`delay_ms` is bounded.** A model asking for a very long wait can no longer push past the operator's `captureTimeoutMs`. The ceiling is 10000 ms, or the configured `delayMs` if that is larger, and a capped request says so in the result's warnings.
+- **The image-capability gate tells its two refusals apart.** "This model declares no image input" and "the route could not be resolved" are now budgeted separately, so the first — the one that tells you how to switch models — can no longer be crowded out by the second. A transient failure while querying the model catalog counts as neither; it is logged and skipped.
+- **Cancellation and timeout are reported distinctly** instead of both surfacing as "the screenshot command produced no output".
+
 ### Upgrading from 0.1.0 (read this)
 
 **0.1.0 installed dsh's runtime packages into the profile as ordinary dependencies**, putting a second `@deepseek-ai/dsh-tools` in front of the one dsh itself loads. The damage is not limited to screenshots — **every** tool call in that profile dies with:

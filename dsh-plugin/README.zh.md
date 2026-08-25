@@ -39,6 +39,13 @@ git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
 ```
 
+### 0.2.0 有什么变化
+
+- **截图文件现在会留在盘上。** `take_screenshot` 的结果里声明了 `path`，现在这个路径指向一个真实可读的文件，你可以照着再读一次。0.2.0 之前文件在工具返回前就被删了，声明的 `path` 永远指向一个不存在的文件。插件会在临时目录里保留最近 20 张、修剪更早的；失败的截图不留任何东西。
+- **`delay_ms` 有上界了。** 模型要一个很长的等待，不再能顶穿运维设的 `captureTimeoutMs`。上限是 10000 毫秒，配置的 `delayMs` 更大时以它为准；被钳制时结果的 warnings 里会说明。
+- **图片能力闸门能区分两种拒绝了。**「这个模型不声明图片输入」和「路由解析不出来」现在各记各的提醒额度，前者（告诉你该怎么换模型的那条）不会再被后者挤掉。查询模型目录时的瞬时故障两者都不算，只记日志并跳过。
+- **取消和超时会分别报出来**，不再都显示成「the screenshot command produced no output」。
+
 ### 从 0.1.0 升级（必看）
 
 **0.1.0 会把 dsh 的运行时包当成普通依赖装进 profile**，在 profile 里造出第二份 `@deepseek-ai/dsh-tools`，盖掉 dsh 自己那份。结果不只是截图不能用 —— 该 profile 里**任何**工具调用都会崩：
