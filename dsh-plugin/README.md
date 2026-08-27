@@ -6,6 +6,8 @@ A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin tha
 
 It is the dsh half of [screenshot-feedback-hook-mcp](https://github.com/lkh081231/screenshot-feedback-hook-mcp); the Python package still owns capture and compression (mss + Pillow, Windows/Linux/macOS), and this plugin owns the dsh wiring.
 
+![The agent calls take_screenshot and the image arrives in the conversation](https://raw.githubusercontent.com/lkh081231/screenshot-feedback-hook-mcp/main/dsh-plugin/docs/screenshot-in-context.png)
+
 ## Why a native plugin instead of the Claude Code hook bridge
 
 A Claude Code hook can only return **text**, so the best it can do is hand back a file path and hope the agent reads it. dsh has a durable image-attachment service, so a native plugin can commit the screenshot and put a real **image block** into the conversation — the agent does not have to call anything.
@@ -114,6 +116,8 @@ To uninstall: `dsh plugin --profile web remove dsh-screenshot-feedback-hook-mcp`
 Layers compose in this order: each bundle's patch in `dsh.profile.bundles` order (`@deepseek-ai/dsh-base` first) → the profile's own `cordis.patch.yml` → the home-level `$DSH_HOME/cordis.patch.yml` → every `--patch` overlay. So **you can override this package's row from your own profile layer without touching the package**.
 
 ## Configuration
+
+![The plugin's card in Settings → Plugins → Plugin configuration](https://raw.githubusercontent.com/lkh081231/screenshot-feedback-hook-mcp/main/dsh-plugin/docs/settings-card.png)
 
 Day to day, tune it from the card at **Settings → Plugins → Plugin configuration → Screenshot feedback**. It writes `$DSH_HOME/settings.yaml`, layered over the composition entry, with no restart. Every field on the card says whether you have overridden it and resets back to the composed value in one click.
 

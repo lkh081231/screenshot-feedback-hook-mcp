@@ -6,6 +6,8 @@
 
 它是 [screenshot-feedback-hook-mcp](https://github.com/lkh081231/screenshot-feedback-hook-mcp) 的 dsh 那一半；截图与压缩仍然全部由 Python 包负责（mss + Pillow，Windows/Linux/macOS 通用），本插件只负责 dsh 这一侧的接线。
 
+![agent 调用 take_screenshot，图片直接出现在对话里](https://raw.githubusercontent.com/lkh081231/screenshot-feedback-hook-mcp/main/dsh-plugin/docs/screenshot-in-context.png)
+
 ## 为什么要做原生插件，而不是直接桥接 Claude Code hook
 
 Claude Code 的 hook 只能回传**文本**，能做到的极限就是把文件路径丢回去、指望 agent 自己去读。dsh 有持久图片附件服务，所以原生插件可以把截图提交进附件库、再作为真正的**图片块**送进对话 —— agent 什么都不用做。
@@ -114,6 +116,8 @@ dsh --profile web --dump-config   # 应当出现 `# == dsh-screenshot-feedback-h
 生效配置的层顺序是：各组合包的 patch（按 `dsh.profile.bundles` 顺序，`@deepseek-ai/dsh-base` 在最前）→ profile 自己的 `cordis.patch.yml` → home 级 `$DSH_HOME/cordis.patch.yml` → 每个 `--patch` overlay。所以**你可以在自己 profile 的层里覆盖本包的行，不用改这个包**。
 
 ## 配置
+
+![设置 → 插件 → 插件配置 里的那张卡片](https://raw.githubusercontent.com/lkh081231/screenshot-feedback-hook-mcp/main/dsh-plugin/docs/settings-card.png)
 
 装好之后日常调参在**设置 → 插件 → 插件配置 → 截图反馈**那张卡片上，它写的是
 `$DSH_HOME/settings.yaml`，叠在组合层之上、免重启。卡片上每个字段都标注是否被
