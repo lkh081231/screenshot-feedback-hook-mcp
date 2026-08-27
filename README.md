@@ -2,6 +2,8 @@
 
 **中文** | [English](README.en.md)
 
+### dsh 用户请跳转到[dsh-plugin/README.zh.md——中文](dsh-plugin/README.zh.md)|[dsh-plugin/README.md——English](dsh-plugin/README.md)
+
 **让 coding agent 看到自己产出的真实画面** —— 跨平台截图反馈工具（MCP server + Claude Code hook 双层）。
 
 Let your coding agent **see what it builds**: a cross-platform (Windows / Linux / macOS) screenshot-feedback tool for AI agents, shipped as an MCP server plus a Claude Code hook helper.
