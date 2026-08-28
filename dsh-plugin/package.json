@@ -1,6 +1,6 @@
 {
   "name": "dsh-screenshot-feedback-hook-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Screenshot feedback for DeepSeek Harness \u2014 let your coding agent SEE what it builds",
   "keywords": [
     "dsh",

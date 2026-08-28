@@ -61,10 +61,14 @@ dsh plugin --profile web add github:lkh081231/screenshot-feedback-hook-mcp#path:
 git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
 cd screenshot-feedback-hook-mcp/dsh-plugin
 npm install && npm run build && npm pack
-dsh plugin --profile web add ./dsh-screenshot-feedback-hook-mcp-0.2.0.tgz
+dsh plugin --profile web add ./dsh-screenshot-feedback-hook-mcp-0.2.1.tgz
 ```
 
 不管走哪条路，装完都确认 `~/.dsh/profiles/<name>/node_modules/@deepseek-ai/` 下**没有任何 `dsh-*` 包** —— 那里只该有 `schemastery` 和 `cosmokit`。
+
+### 0.2.1 有什么变化
+
+- **自动截图失败现在会在对话里说明原因。** 两个自动时机以前把所有失败都吞进日志，插件表现为「静默地什么也没做」—— 而最常见的那个失败（PATH 上没有 `uvx`）恰恰带着照做就能修好的指引。现在原因会作为插件上下文送到模型面前：`autoAfterTools` 挂在工具结果旁边，`autoOnTurnStop` 走 inject。决策本身仍然原样放行；轮次结束时的失败**只 inject 不 steer**，不会把本该收尾的轮次续下去。同一段原因只报一次、直到它变了为止；成功一次就清账，之后再坏会重新报。至于闸门自己都查不通（模型目录不可达）那种，仍然只记日志 —— 它没有任何可执行的建议能给模型。
 
 ### 0.2.0 有什么变化
 

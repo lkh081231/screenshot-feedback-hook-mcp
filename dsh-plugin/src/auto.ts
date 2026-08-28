@@ -15,7 +15,7 @@ import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import type { PostToolDecision } from '@deepseek-ai/dsh-tools'
 import { captureScreenshot } from './capture.js'
 import type { Config, ConfigSource } from './config.js'
-import { imageValueFromRef, pluginMessage, pluginTextMessage, screenshotContent } from './content.js'
+import { formatCaptureFailureText, imageValueFromRef, pluginMessage, pluginTextMessage, screenshotContent } from './content.js'
 import type { ScreenshotValue } from './content.js'
 import { probeImageCapableRoute } from './route.js'
 import type { RouteProbeKind } from './route.js'
@@ -59,6 +59,14 @@ interface AutoState {
   warned: Map<RouteProbeKind, WeakSet<Agent>>
   /** agent 为 undefined 时没有可挂载的键，只能按插件实例记一次。 */
   warnedWithoutAgent: Set<RouteProbeKind>
+  /**
+   * 上一次已经报给模型的截图失败原因。自动时机每轮都触发，同一段原因反复贴过去
+   * 纯属烧 token；但也不能只报一次就永远闭嘴，所以记的是「上一次」而不是「报过」
+   * —— 换了原因立刻再说，成功一次则由 {@link clearFailure} 清账。
+   */
+  lastFailure: WeakMap<Agent, string>
+  /** agent 为 undefined 时的同一笔账。 */
+  lastFailureWithoutAgent: string | undefined
   steeredTurn: WeakMap<Agent, number>
 }
 
@@ -83,6 +91,45 @@ function claimWarning(state: AutoState, kind: RouteProbeKind, agent: Agent | und
   if (seen.has(agent)) return false
   seen.add(agent)
   return true
+}
+
+/**
+ * 把抛出来的任意值收成一句可读原因。
+ * @param error - 捕获到的值。
+ * @returns 原因文本。
+ */
+function failureReason(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * 领取一次「把截图失败告诉模型」的额度。同一段原因连续复发只说一次，换了原因
+ * 立刻再说。
+ * @param state - 共享状态。
+ * @param agent - 当前 agent；undefined 时按插件实例记账。
+ * @param reason - 本次失败原因。
+ * @returns 该说就是 true。
+ */
+function claimFailure(state: AutoState, agent: Agent | undefined, reason: string): boolean {
+  if (agent === undefined) {
+    if (state.lastFailureWithoutAgent === reason) return false
+    state.lastFailureWithoutAgent = reason
+    return true
+  }
+  if (state.lastFailure.get(agent) === reason) return false
+  state.lastFailure.set(agent, reason)
+  return true
+}
+
+/**
+ * 截图成功后清掉失败记账。不清的话，用户装好 uv、中间成功过若干次之后再坏，
+ * 模型就再也听不到了。
+ * @param state - 共享状态。
+ * @param agent - 当前 agent。
+ */
+function clearFailure(state: AutoState, agent: Agent | undefined): void {
+  if (agent === undefined) state.lastFailureWithoutAgent = undefined
+  else state.lastFailure.delete(agent)
 }
 
 /**
@@ -134,7 +181,13 @@ async function captureValue(ctx: Context, config: Config, delayMs: number, signa
  */
 export function applyAutoCapture(ctx: Context, source: ConfigSource): void {
   const logger = ctx.logger('screenshot-feedback')
-  const state: AutoState = { warned: new Map(), warnedWithoutAgent: new Set(), steeredTurn: new WeakMap() }
+  const state: AutoState = {
+    warned: new Map(),
+    warnedWithoutAgent: new Set(),
+    lastFailure: new WeakMap(),
+    lastFailureWithoutAgent: undefined,
+    steeredTurn: new WeakMap(),
+  }
 
   ctx.on('tools/post-execute', async (exec, result, next) => {
     const decision = await next()
@@ -147,13 +200,26 @@ export function applyAutoCapture(ctx: Context, source: ConfigSource): void {
       const warning = await gateOrWarning(ctx, config, state, exec.agent, exec.signal)
       if (warning === null) return decision
       if (warning !== undefined) return withAdditionalContext(decision, warning)
+    } catch (error: unknown) {
+      // 闸门自己查不通（模型目录不可达、被取消）不是「截图失败」：没有任何可执行
+      // 的建议能给模型，贴过去只是噪声。只记日志。
+      logger.warn('the screenshot gate before %s failed: %s', exec.name, error)
+      return decision
+    }
+    try {
       const value = await captureValue(ctx, config, config.autoAfterToolsDelayMs, exec.signal)
+      clearFailure(state, exec.agent)
       const content = screenshotContent(value, `Screenshot taken automatically after ${exec.name}.`)
       return withAdditionalContext(decision, pluginMessage(content))
     } catch (error: unknown) {
-      // 截图是锦上添花：它坏了绝不能连累工具流水线
+      // 截图是锦上添花：它坏了绝不能连累工具流水线 —— 决策原样返回，只在旁边附一
+      // 条说明。最常见的失败（PATH 上没有 uvx）带着照做就能修好的指引，只写进
+      // 日志的话，用户在对话里看到的是「插件静默地什么也没做」。
       logger.warn('automatic screenshot after %s failed: %s', exec.name, error)
-      return decision
+      const reason = failureReason(error)
+      if (!claimFailure(state, exec.agent, reason)) return decision
+      const headline = `The automatic screenshot after ${exec.name} failed, so there is no image for this step.`
+      return withAdditionalContext(decision, pluginTextMessage(formatCaptureFailureText(headline, reason)))
     }
   })
 
@@ -171,13 +237,26 @@ export function applyAutoCapture(ctx: Context, source: ConfigSource): void {
         agent.inject(warning)
         return
       }
+    } catch (error: unknown) {
+      // 与 tools/post-execute 同理：闸门查不通没有可执行建议，只记日志
+      logger.warn('the screenshot gate at turn end failed: %s', error)
+      return
+    }
+    try {
       const value = await captureValue(ctx, config, config.autoOnTurnStopDelayMs, signal)
+      clearFailure(state, agent)
       const content = screenshotContent(value, 'Screenshot of the screen as this turn was about to end. Check it against what you intended to produce.')
       const message = pluginMessage(content)
       if (config.autoOnTurnStopSteer) agent.steer(message)
       else agent.inject(message)
     } catch (error: unknown) {
       logger.warn('automatic screenshot at turn end failed: %s', error)
+      const reason = failureReason(error)
+      if (!claimFailure(state, agent, reason)) return
+      // 一律 inject，即便配了 steer：为读一条错误信息而让模型再跑一步不值当，
+      // 何况 steer 会把本该收尾的轮次续下去 —— 截图失败绝不能延长 agent 的生命。
+      const headline = 'The automatic screenshot at the end of this turn failed, so there is no image of the final state.'
+      agent.inject(pluginTextMessage(formatCaptureFailureText(headline, reason)))
     }
   })
 }

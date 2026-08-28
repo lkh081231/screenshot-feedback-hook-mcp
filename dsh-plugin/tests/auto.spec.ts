@@ -109,9 +109,60 @@ describe('automatic capture after tools', () => {
     harness.failCapture = true
     applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
     const decision = await postExecute(harness)(execOf('edit', createAgent()), success, accept)
-    expect(decision).toEqual({ kind: 'accept' })
+    // 决策本身原样放行 —— 附加上下文不是阻断
+    expect(decision.kind).toBe('accept')
     expect(harness.warnings.join(' ')).toContain('no display')
   })
+
+  it('tells the model why the screenshot failed instead of only logging it', async () => {
+    const harness = createHarness()
+    harness.failCapture = true
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
+    const decision = await postExecute(harness)(execOf('edit', createAgent()), success, accept)
+    // 只进日志的话，用户在对话里看到的是「插件静默地什么也没做」；而最常见的失败
+    // （PATH 上没有 uvx）带着照做就能修好的指引
+    expect(contextText(decision)).toContain('The automatic screenshot after edit failed')
+    expect(contextText(decision)).toContain('<error>screenshot failed: no display</error>')
+  })
+
+  it('reports the same failure once, then keeps quiet until it changes', async () => {
+    const harness = createHarness()
+    harness.failCapture = true
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
+    const agent = createAgent()
+
+    const first = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(contextText(first)).toContain('no display')
+
+    // 自动时机每轮都触发，同一段原因反复贴过去纯属烧 token
+    const second = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(second.additionalContexts).toBeUndefined()
+
+    // 换了原因就立刻再说：只报一次的话，第二种故障永远说不出口
+    harness.failCapture = false
+    harness.stdout = JSON.stringify({ error: 'the attachment store is full' })
+    const third = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(contextText(third)).toContain('the attachment store is full')
+  })
+
+  it('clears the memo after a success, so a relapse is reported again', async () => {
+    const harness = createHarness()
+    harness.failCapture = true
+    applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
+    const agent = createAgent()
+    await postExecute(harness)(execOf('edit', agent), success, accept)
+
+    // 用户照着指引把 uv 装上了
+    harness.failCapture = false
+    const ok = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(ok.additionalContexts?.[0]?.content.map(block => block.type)).toEqual(['text', 'image'])
+
+    // 之后再坏就该重新说 —— 不清账的话模型再也听不到了
+    harness.failCapture = true
+    const relapse = await postExecute(harness)(execOf('edit', agent), success, accept)
+    expect(contextText(relapse)).toContain('no display')
+  })
+
 
   it('explains a text-only model once and then keeps quiet', async () => {
     const harness = createHarness()
@@ -144,6 +195,7 @@ describe('automatic capture after tools', () => {
     applyAutoCapture(harness.ctx, makeSource({ autoAfterTools: true, autoAfterToolsDelayMs: 0 }))
     const agent = createAgent()
 
+    // 决策原样返回、什么都不附加：闸门自己查不通没有可执行建议，贴给模型只是噪声
     const during = await postExecute(harness)(execOf('edit', agent), success, accept)
     expect(during).toEqual({ kind: 'accept' })
     expect(harness.warnings.join(' ')).toContain('temporarily unreachable')
@@ -257,9 +309,27 @@ describe('automatic capture at turn end', () => {
     const harness = createHarness()
     harness.failCapture = true
     applyAutoCapture(harness.ctx, makeSource({ autoOnTurnStop: true, autoOnTurnStopDelayMs: 0 }))
-    const { agent, steered } = createAgent()
+    const { agent, steered, injected } = createAgent()
     await turnStopping(harness)({ agent, turn: 1, signal: new AbortController().signal })
+    // 原因照样送到，但只 inject：为读一条错误信息而 steer 会把本该收尾的轮次续下去
     expect(steered).toHaveLength(0)
+    expect(injected).toHaveLength(1)
     expect(harness.warnings.join(' ')).toContain('no display')
+  })
+
+  it('hands the failure reason to the model instead of ending the turn silently', async () => {
+    const harness = createHarness()
+    harness.failCapture = true
+    applyAutoCapture(harness.ctx, makeSource({ autoOnTurnStop: true, autoOnTurnStopDelayMs: 0 }))
+    const { agent, injected } = createAgent()
+    const signal = new AbortController().signal
+    await turnStopping(harness)({ agent, turn: 1, signal })
+    const block = injected[0]?.content[0]
+    expect(block?.type === 'text' && block.text).toContain('The automatic screenshot at the end of this turn failed')
+    expect(block?.type === 'text' && block.text).toContain('<error>screenshot failed: no display</error>')
+
+    // 每轮都触发，同一段原因反复说纯属烧 token
+    await turnStopping(harness)({ agent, turn: 2, signal })
+    expect(injected).toHaveLength(1)
   })
 })

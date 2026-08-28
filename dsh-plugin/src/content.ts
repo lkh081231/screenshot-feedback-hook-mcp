@@ -110,3 +110,17 @@ export function pluginMessage(content: ContentBlock[]): UserMessage {
 export function pluginTextMessage(text: string): UserMessage {
   return pluginMessage([{ type: 'text', text }])
 }
+
+/**
+ * 自动截图失败时给模型的那条文字。
+ *
+ * 两个自动时机的失败以前只进日志：模型和用户在对话里什么都看不到，插件表现为
+ * 「静默地什么也没做」。而最常见的那个失败 —— PATH 上没有 `uvx` —— 恰恰带着一段
+ * 照做就能修好的说明，把它烂在日志里是最亏的。
+ * @param headline - 首行，说明是哪个时机失败了。
+ * @param reason - 失败原因。
+ * @returns 面向模型的文本。
+ */
+export function formatCaptureFailureText(headline: string, reason: string): string {
+  return [headline, `<error>${reason}</error>`].join('\n')
+}
