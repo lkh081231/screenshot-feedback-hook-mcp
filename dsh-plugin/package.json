@@ -1,7 +1,7 @@
 {
   "name": "dsh-screenshot-feedback-hook-mcp",
   "version": "0.2.1",
-  "description": "Screenshot feedback for DeepSeek Harness \u2014 let your coding agent SEE what it builds",
+  "description": "Screenshot feedback for DeepSeek Harness — let your coding agent SEE what it builds",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -34,7 +34,9 @@
     "lib",
     "cordis.patch.yml",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "CHANGELOG.md",
+    "CHANGELOG.zh.md"
   ],
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
@@ -78,15 +80,33 @@
     "@deepseek-ai/dsh-tools": "^0.1.0-rc.8 || ^0.1.1-rc.0"
   },
   "peerDependenciesMeta": {
-    "@deepseek-ai/cordis": { "optional": true },
-    "@deepseek-ai/dsh-agent": { "optional": true },
-    "@deepseek-ai/dsh-attachment": { "optional": true },
-    "@deepseek-ai/dsh-llm": { "optional": true },
-    "@deepseek-ai/dsh-scope": { "optional": true },
-    "@deepseek-ai/dsh-session": { "optional": true },
-    "@deepseek-ai/dsh-settings": { "optional": true },
-    "@deepseek-ai/dsh-subprocess": { "optional": true },
-    "@deepseek-ai/dsh-tools": { "optional": true }
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-agent": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-attachment": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-scope": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-subprocess": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
