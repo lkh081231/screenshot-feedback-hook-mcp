@@ -23,6 +23,7 @@ A Claude Code hook can only return **text**, so the best it can do is hand back 
 - **dsh `v0.1.0-rc.8` or later** — every API this plugin uses was verified against that tag.
 - **pnpm** on PATH — `dsh plugin` forwards to it.
 - **The Python package `screenshot-feedback-hook-mcp` >= 0.3.0**, reachable as `uvx screenshot-feedback-hook-mcp` (needs [uv](https://docs.astral.sh/uv/)) or installed with `pipx`/`uv tool`. Older releases have no `capture --json`; the plugin detects that and tells you to upgrade.
+- **On macOS, screen-recording permission** — and note that a missing one is not reliably detected. See [Platform notes](#platform-notes) before you trust a screenshot.
 - **A model that accepts image input** — see [Image-capable models](#image-capable-models). Without one the plugin refuses to capture and explains how to switch.
 
 ## Install
@@ -210,6 +211,31 @@ Both are **off by default**: each screenshot is an image that rides every later 
 - `autoOnTurnStop` hooks `agent/turn-stopping`. Steering there forces another step, which reaches the same stop boundary again — dsh's Claude Code hook bridge pins `stop_hook_active` to `false` and has no consecutive-block cap, so a naive Stop hook keeps the agent running forever. This plugin dedupes on `payload.turn`: **at most one capture per turn**.
 
 A failing screenshot never blocks anything — it is logged and the tool pipeline or turn continues unchanged.
+
+## Platform notes
+
+Capture itself lives in the Python package, so these apply to every front end it has — this plugin included.
+
+- **Windows**: works out of the box.
+- **Linux**: X11 works out of the box. Under pure Wayland `mss` is limited; the CLI detects the session and every screenshot carries a warning about it, so the model is told. That warning fires whenever `XDG_SESSION_TYPE=wayland`, even when XWayland makes the capture come out fine.
+- **macOS**: grant Screen Recording to the terminal/IDE that runs dsh (System Settings → Privacy & Security → Screen Recording), then fully quit and relaunch it. Without permission you do **not** get a black screen — you get the desktop wallpaper plus the menu bar, with every application window missing.
+
+> [!WARNING]
+> **A missing macOS permission is not reliably detected. Verify it by hand once.**
+>
+> The current check is an after-the-fact heuristic: it shrinks the frame to 16x16 and looks at the grayscale range, so it only fires when the capture is **near-uniform** (pure black, a solid-colour wallpaper). **A photographic wallpaper does not trip it** — and that is what macOS ships with.
+>
+> So the model can receive a screenshot that looks like a perfectly normal desktop, with no warning attached, while the window it wanted is simply not in it. That is worse than a black screen: the model concludes its own page failed to render and goes off debugging code that is fine.
+>
+> Before relying on the automatic timings, run the CLI by hand once and look at the image:
+>
+> ```sh
+> uvx screenshot-feedback-hook-mcp capture --out shot.jpg
+> ```
+>
+> If your window is in it, the permission is granted and everything below works. A definitive check (`CGPreflightScreenCaptureAccess()`, independent of what the frame looks like) is planned but needs a macOS machine to verify.
+
+Environment warnings that *do* fire reach the model: they ride in the screenshot's `warnings` and are rendered as a `<warnings>` line beside the image, so the model sees the reason rather than only a broken picture.
 
 ## Image-capable models
 

@@ -167,7 +167,13 @@ CLI 会输出正确的 hook JSON（`Stop` 用 `decision:block` 回传文字并�
 ## 平台注意事项 / Platform notes
 
 - **Windows**：开箱即用。
-- **macOS**：首次使用需在「系统设置 → 隐私与安全性 → 屏幕录制」勾选运行 agent 的终端/IDE 并重启该应用，否则截到黑屏/壁纸（工具会检测并提示）。
+- **macOS**：首次使用需在「系统设置 → 隐私与安全性 → 屏幕录制」勾选运行 agent 的终端/IDE 并重启该应用。未授权时截到的**不是黑屏，而是壁纸 + 菜单栏** —— 其他应用的窗口一个都不在图里。
+
+  > ⚠️ **未授权不一定会被检测出来，请先手动验证一次。** 现在的检测是事后启发式（`core/platform_check.py` 的 `capture_warning`）：把画面缩到 16×16 看灰度极差，只有**接近纯色**（纯黑、纯色壁纸）才会给出提示。**照片壁纸下不会触发**，而那正是 macOS 的默认样子。也就是说你可能拿到一张「看起来完全正常的桌面截图」、一句警告都没有，而你要看的窗口根本不在图里 —— 比黑屏更难察觉，agent 会以为是自己的页面没渲染出来，跑去 debug 一份没问题的代码。
+  >
+  > 在授权确定之前，先手动跑一次 `uvx screenshot-feedback-hook-mcp capture --out shot.jpg` 并亲眼看一下图里有没有你的窗口，再交给 agent。
+  >
+  > 确定性的检测（`CGPreflightScreenCaptureAccess()`，与画面内容无关）在 roadmap 上，缺一台 macOS 机器验证。
 - **Linux**：X11 开箱即用；**纯 Wayland 下 mss 受限**，工具启动时会探测并提示（grim/portal 后端在 roadmap）。
 
 ## Roadmap
@@ -176,6 +182,7 @@ CLI 会输出正确的 hook JSON（`Stop` 用 `decision:block` 回传文字并�
 - [ ] 按窗口标题截图（Win EnumWindows / mac CGWindowList / Linux wmctrl）
 - [ ] URL / 无头浏览器模式（前端确定性截图）
 - [ ] Wayland 后端（grim / xdg-desktop-portal）
+- [ ] macOS 屏幕录制授权的确定性检测（`CGPreflightScreenCaptureAccess`），替掉现在会漏检照片壁纸的纯色启发式
 
 ## 开发 / Development
 

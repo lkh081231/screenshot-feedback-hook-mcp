@@ -167,7 +167,13 @@ The CLI emits the correct hook JSON (`Stop` uses `decision:block` to return text
 ## Platform notes
 
 - **Windows**: works out of the box.
-- **macOS**: on first use, enable the terminal/IDE running the agent under System Settings → Privacy & Security → Screen Recording, then restart that app — otherwise you'll capture a black screen / wallpaper (the tool detects and warns).
+- **macOS**: on first use, enable the terminal/IDE running the agent under System Settings → Privacy & Security → Screen Recording, then restart that app. Without permission you do **not** get a black screen — you get the desktop wallpaper plus the menu bar, with every application window missing.
+
+  > ⚠️ **A missing permission is not reliably detected. Verify it by hand once.** The current check (`capture_warning` in `core/platform_check.py`) is an after-the-fact heuristic: it shrinks the frame to 16×16 and looks at the grayscale range, so it only fires when the capture is **near-uniform** (pure black, a solid-colour wallpaper). **A photographic wallpaper does not trip it** — and that is what macOS ships with. So you can get a screenshot that looks like a perfectly normal desktop, with no warning at all, while the window you wanted is simply not in it. That is harder to notice than a black screen: the agent concludes its own page failed to render and goes off debugging code that is fine.
+  >
+  > Until you are sure the permission is granted, run `uvx screenshot-feedback-hook-mcp capture --out shot.jpg` yourself and look at the image to confirm your window is in it.
+  >
+  > A definitive check (`CGPreflightScreenCaptureAccess()`, independent of what the frame looks like) is on the roadmap; it needs a macOS machine to verify.
 - **Linux**: X11 works out of the box; **mss is limited under pure Wayland** — the tool probes and warns at startup (grim/portal backend on the roadmap).
 
 ## Roadmap
@@ -176,6 +182,7 @@ The CLI emits the correct hook JSON (`Stop` uses `decision:block` to return text
 - [ ] Capture by window title (Win EnumWindows / mac CGWindowList / Linux wmctrl)
 - [ ] URL / headless-browser mode (deterministic frontend screenshots)
 - [ ] Wayland backend (grim / xdg-desktop-portal)
+- [ ] Definitive macOS screen-recording permission check (`CGPreflightScreenCaptureAccess`), replacing the solid-colour heuristic that misses photographic wallpapers
 
 ## Development
 
