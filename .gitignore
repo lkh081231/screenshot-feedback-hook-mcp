@@ -29,3 +29,6 @@ node_modules/
 dsh-plugin/node_modules/
 dsh-plugin/lib/
 dsh-plugin/*.tgz
+
+# 误下载的第三方数据（市场目录 tarball 等）
+*.tgz
