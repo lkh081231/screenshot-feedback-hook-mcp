@@ -34,12 +34,37 @@ dsh web
 
 Ask the agent to "take a screenshot and tell me what is on screen". Use `--profile <name>` for whichever profile you boot.
 
-To install from a checkout instead:
+### Installing from GitHub, and why not from a working tree
+
+The plugin registry lists a git spec, and it works: pnpm clones the repo, runs this package's `prepare` script to build `lib/`, then packs the result and installs that.
+
+```sh
+dsh plugin --profile web add github:lkh081231/screenshot-feedback-hook-mcp#path:/dsh-plugin
+```
+
+> **pnpm 10 and later gate build scripts.** The first install — before the built package is in pnpm's content-addressable store — can stop with `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`. Allow it in `~/.dsh/profiles/<name>/pnpm-workspace.yaml` under `onlyBuiltDependencies`, copying the exact entry pnpm's error prints, then run the command again. Once the built package is cached the gate no longer applies.
+
+**Do not point `dsh plugin add` at a working tree.** `dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin` installs the directory as a pnpm `link:`, and that fails two different ways:
+
+- **`lib/` is a build product and is not in git.** pnpm does not run `prepare` for linked packages, so `main: "lib/index.js"` points at nothing and dsh dies at boot:
+
+  ```
+  dsh: plugin tree failed to load: ... Cannot find module
+  '~/.dsh/profiles/web/node_modules/dsh-screenshot-feedback-hook-mcp/lib/index.js'
+  ```
+
+- **Building in place fixes that and causes something worse.** Node resolves a linked package from its real path, so after `npm install` the `@deepseek-ai/dsh-*` copies sitting in `dsh-plugin/node_modules/` shadow the host's — the duplicate-instance failure described in [Upgrading from 0.1.0](#upgrading-from-010-read-this), which breaks **every** tool call in that profile, not just screenshots.
+
+To install from a checkout, pack it first so only the `files` allowlist reaches the profile:
 
 ```sh
 git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
-dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
+cd screenshot-feedback-hook-mcp/dsh-plugin
+npm install && npm run build && npm pack
+dsh plugin --profile web add ./dsh-screenshot-feedback-hook-mcp-0.2.0.tgz
 ```
+
+Whichever route you take, confirm `~/.dsh/profiles/<name>/node_modules/@deepseek-ai/` holds **no `dsh-*` package** — only `schemastery` and `cosmokit` belong there.
 
 ### What changed in 0.2.0
 

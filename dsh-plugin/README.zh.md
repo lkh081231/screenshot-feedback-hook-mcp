@@ -34,12 +34,37 @@ dsh web
 
 然后让 agent「截个图，告诉我屏幕上是什么」。用别的 profile 就把 `--profile` 换掉。
 
-从源码 checkout 安装：
+### 从 GitHub 安装，以及为什么不能直接指向源码目录
+
+插件市场给的是 git 写法，这条能用：pnpm 会克隆仓库、跑本包的 `prepare` 脚本把 `lib/` 构建出来，再按打包结果安装。
+
+```sh
+dsh plugin --profile web add github:lkh081231/screenshot-feedback-hook-mcp#path:/dsh-plugin
+```
+
+> **pnpm 10 起对构建脚本设了闸门。** 首次安装（构建产物还没进 pnpm 的内容寻址 store）可能停在 `ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED`。在 `~/.dsh/profiles/<name>/pnpm-workspace.yaml` 的 `onlyBuiltDependencies` 里放行即可 —— 照着报错里打印的那一行原样抄，然后重跑上面的命令。构建产物进了缓存之后就不再过这个闸门。
+
+**不要让 `dsh plugin add` 指向源码工作区。** `dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin` 会把这个目录装成 pnpm 的 `link:`，它会以两种方式失败：
+
+- **`lib/` 是构建产物，不在 git 里。** pnpm 不会为 link 依赖跑 `prepare`，于是 `main: "lib/index.js"` 指向一个不存在的文件，dsh 启动即崩：
+
+  ```
+  dsh: plugin tree failed to load: ... Cannot find module
+  '~/.dsh/profiles/web/node_modules/dsh-screenshot-feedback-hook-mcp/lib/index.js'
+  ```
+
+- **就地构建能解决上一条，但会引出更糟的问题。** Node 按真实路径解析 link 过来的包，所以 `npm install` 之后落在 `dsh-plugin/node_modules/` 里的那几份 `@deepseek-ai/dsh-*` 会盖住宿主的 —— 正是[从 0.1.0 升级](#从-010-升级必看)那节讲的双实例故障，它会让该 profile 里**所有**工具调用挂掉，不止截图。
+
+要从 checkout 安装，先打包，让只有 `files` 白名单里的东西进 profile：
 
 ```sh
 git clone https://github.com/lkh081231/screenshot-feedback-hook-mcp.git
-dsh plugin --profile web add ./screenshot-feedback-hook-mcp/dsh-plugin
+cd screenshot-feedback-hook-mcp/dsh-plugin
+npm install && npm run build && npm pack
+dsh plugin --profile web add ./dsh-screenshot-feedback-hook-mcp-0.2.0.tgz
 ```
+
+不管走哪条路，装完都确认 `~/.dsh/profiles/<name>/node_modules/@deepseek-ai/` 下**没有任何 `dsh-*` 包** —— 那里只该有 `schemastery` 和 `cosmokit`。
 
 ### 0.2.0 有什么变化
 
