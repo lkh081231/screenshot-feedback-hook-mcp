@@ -22,11 +22,62 @@ Claude Code 的 hook 只能回传**文本**，能做到的极限就是把文件�
 
 - **dsh `v0.1.0-rc.8` 或更高** —— 本插件用到的每个 API 都是对着这个 tag 核对过的。
 - **PATH 上有 pnpm** —— `dsh plugin` 是转发给它执行的。
-- **Python 包 `screenshot-feedback-hook-mcp` >= 0.3.0**，可以用 `uvx screenshot-feedback-hook-mcp` 零安装运行（需要 [uv](https://docs.astral.sh/uv/)），也可以 `pipx` / `uv tool` 常驻安装。更早的版本没有 `capture --json`，插件会识别出来并提示你升级。
+- **一个能跑 `capture --json` 的 `screenshot-feedback-hook-mcp` >= 0.3.0** —— 截图与压缩都由它做，装法见下面[三条路](#怎么把截图-cli-装上)。更早的版本没有这个子命令，插件会识别出来并点名让你升级。
 - **macOS 上的屏幕录制授权** —— 而且未授权**不一定会被检测出来**，信任截图之前先读[平台注意事项](#平台注意事项)。
 - **一个支持图片输入的模型** —— 见[支持图片的模型](#支持图片的模型)。没有的话插件会拒绝截图，并说明怎么换。
 
+### 怎么把截图 CLI 装上
+
+插件对这个 CLI 的唯一接触点是配置里的 `command` / `args` 两个字段（见[配置](#配置)），它拿 `command` 去 PATH 上查一次可执行文件，仅此而已。所以下面三条随便挑一条，**uv 不是硬性依赖**，只是默认那条路。
+
+**A. 装 uv —— 默认配置直接可用，推荐**
+
+```sh
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+装完什么都不用改：默认就是 `command: uvx` + `args: ['screenshot-feedback-hook-mcp']`，`uvx` 会按需从 PyPI 拉包（首次需要联网）。
+
+**uv 自己不需要 Python** —— 它是独立二进制，会按需下载解释器。所以对「机器上还没有可用 Python」的人，这条反而门槛最低；B 那条要求你先有 Python。
+
+**B. 已经有 Python，想常驻安装**
+
+```sh
+pipx install screenshot-feedback-hook-mcp
+# 或 uv tool install screenshot-feedback-hook-mcp
+```
+
+然后改配置。**后应用的层会替换整个 `config`**，所以要重述你想要的所有键：
+
+```yaml
+# ~/.dsh/profiles/<name>/cordis.patch.yml
+- id: screenshot-feedback
+  name: dsh-screenshot-feedback-hook-mcp
+  config:
+    command: screenshot-feedback-hook-mcp
+    args: []
+    monitor: 0
+```
+
+**C. 装在 venv 里，或者根本不想动 PATH**
+
+`command` 直接填绝对路径，其余同 B：
+
+```yaml
+    command: C:\Users\you\proj\.venv\Scripts\screenshot-feedback-hook-mcp.exe
+    args: []
+```
+
+> `command` / `args` / `cwd` **不在设置卡片上** —— 它们决定去哪里找可执行文件，属于部署事实而不是用户偏好。所以走 B / C 必须编辑上面那个 YAML 文件，在设置页里点不出来。
+>
+> 好在装错了给的信息是可执行的：命令找不到时插件会直接告诉你「装 uv，或者 pipx 装完把 `command` 改成什么、`args` 清空」；装了旧版 Python 包时会点名让你升级，而不是丢一段 argparse usage 让你自己猜。
+
 ## 安装
+
+本插件已经上架 [awesome-dsh-plugin](https://awesome-dsh-plugin.com)（`vision` 分类），可以直接从 dsh 的插件市场里装。**市场卡片目前给的是下面那条 GitHub 写法** —— npm 写法要等对方的探针把 npm 链接补上，跟本仓库无关；手动敲下面这条 npm 命令是一直可用的。
 
 ```sh
 dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp

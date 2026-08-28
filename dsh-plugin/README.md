@@ -22,11 +22,62 @@ A Claude Code hook can only return **text**, so the best it can do is hand back 
 
 - **dsh `v0.1.0-rc.8` or later** — every API this plugin uses was verified against that tag.
 - **pnpm** on PATH — `dsh plugin` forwards to it.
-- **The Python package `screenshot-feedback-hook-mcp` >= 0.3.0**, reachable as `uvx screenshot-feedback-hook-mcp` (needs [uv](https://docs.astral.sh/uv/)) or installed with `pipx`/`uv tool`. Older releases have no `capture --json`; the plugin detects that and tells you to upgrade.
+- **A `screenshot-feedback-hook-mcp` >= 0.3.0 that can run `capture --json`** — it owns capture and compression. Three ways to get one are [below](#getting-the-screenshot-cli-onto-the-machine). Older releases lack that subcommand; the plugin detects it and names the upgrade.
 - **On macOS, screen-recording permission** — and note that a missing one is not reliably detected. See [Platform notes](#platform-notes) before you trust a screenshot.
 - **A model that accepts image input** — see [Image-capable models](#image-capable-models). Without one the plugin refuses to capture and explains how to switch.
 
+### Getting the screenshot CLI onto the machine
+
+The plugin's only contact with this CLI is the `command` / `args` pair in its config (see [Configuration](#configuration)): it looks `command` up on PATH once, and that is all. So pick any of the three below — **uv is not a hard dependency**, just the default route.
+
+**A. Install uv — the default config then works as shipped (recommended)**
+
+```sh
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Nothing else to change: the defaults are `command: uvx` and `args: ['screenshot-feedback-hook-mcp']`, and `uvx` fetches the package from PyPI on demand (the first run needs network).
+
+**uv needs no Python of its own** — it is a standalone binary that downloads an interpreter when it needs one. That makes this the lowest bar for a machine with no usable Python yet; route B requires you to already have one.
+
+**B. You already have Python and want a resident install**
+
+```sh
+pipx install screenshot-feedback-hook-mcp
+# or: uv tool install screenshot-feedback-hook-mcp
+```
+
+Then point the config at it. **A later layer replaces the whole `config`**, so restate every key you want:
+
+```yaml
+# ~/.dsh/profiles/<name>/cordis.patch.yml
+- id: screenshot-feedback
+  name: dsh-screenshot-feedback-hook-mcp
+  config:
+    command: screenshot-feedback-hook-mcp
+    args: []
+    monitor: 0
+```
+
+**C. Inside a venv, or you would rather not touch PATH at all**
+
+Give `command` an absolute path; the rest is as in B:
+
+```yaml
+    command: C:\Users\you\proj\.venv\Scripts\screenshot-feedback-hook-mcp.exe
+    args: []
+```
+
+> `command` / `args` / `cwd` are **not on the settings card** — they decide where the executable lives, which is a deployment fact rather than a user preference. So routes B and C mean editing the YAML above; there is no control for them in the settings page.
+>
+> The failure messages are actionable, at least: when the command cannot be found the plugin tells you to install uv, or to set `command` to `screenshot-feedback-hook-mcp` with an empty `args` after a pipx install; when the Python package is too old it names the upgrade instead of dumping an argparse usage string at you.
+
 ## Install
+
+This plugin is listed on [awesome-dsh-plugin](https://awesome-dsh-plugin.com) under `vision`, so you can install it straight from the dsh plugin market. **The market card currently hands out the GitHub spec below** — the npm spec is waiting on that site's own probe to link the npm package, which is outside this repo. Typing the npm command below yourself has always worked.
 
 ```sh
 dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
