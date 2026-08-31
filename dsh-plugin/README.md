@@ -77,7 +77,7 @@ Give `command` an absolute path; the rest is as in B:
 
 ## Install
 
-This plugin is listed on [awesome-dsh-plugin](https://awesome-dsh-plugin.com) under `vision`, so you can install it straight from the dsh plugin market. **The market card currently hands out the GitHub spec below** — the npm spec is waiting on that site's own probe to link the npm package, which is outside this repo. Typing the npm command below yourself has always worked.
+This plugin is listed on [awesome-dsh-plugin](https://awesome-dsh-plugin.com) under `vision`, so you can install it straight from the [dsh-market](https://github.com/dsh-market/dsh-market) — the market card now hands out the npm spec below.
 
 ```sh
 dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
@@ -88,7 +88,7 @@ Ask the agent to "take a screenshot and tell me what is on screen". Use `--profi
 
 ### Installing from GitHub, and why not from a working tree
 
-The plugin registry lists a git spec, and it works: pnpm clones the repo, runs this package's `prepare` script to build `lib/`, then packs the result and installs that.
+To install unreleased `main`, use the git spec, which also works: pnpm clones the repo, runs this package's `prepare` script to build `lib/`, then packs the result and installs that.
 
 ```sh
 dsh plugin --profile web add github:lkh081231/screenshot-feedback-hook-mcp#path:/dsh-plugin

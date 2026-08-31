@@ -77,7 +77,7 @@ pipx install screenshot-feedback-hook-mcp
 
 ## 安装
 
-本插件已经上架 [awesome-dsh-plugin](https://awesome-dsh-plugin.com)（`vision` 分类），可以直接从 dsh 的插件市场里装。**市场卡片目前给的是下面那条 GitHub 写法** —— npm 写法要等对方的探针把 npm 链接补上，跟本仓库无关；手动敲下面这条 npm 命令是一直可用的。
+本插件已经收录进 [awesome-dsh-plugin](https://awesome-dsh-plugin.com)（`vision` 分类），可以直接从 [dsh-market](https://github.com/dsh-market/dsh-market) 里装 —— 市场卡片现在给的就是下面这条 npm 写法。
 
 ```sh
 dsh plugin --profile web add dsh-screenshot-feedback-hook-mcp
@@ -88,7 +88,7 @@ dsh web
 
 ### 从 GitHub 安装，以及为什么不能直接指向源码目录
 
-插件市场给的是 git 写法，这条能用：pnpm 会克隆仓库、跑本包的 `prepare` 脚本把 `lib/` 构建出来，再按打包结果安装。
+想装未发布的 main 分支就用 git 写法，这条也能用：pnpm 会克隆仓库、跑本包的 `prepare` 脚本把 `lib/` 构建出来，再按打包结果安装。
 
 ```sh
 dsh plugin --profile web add github:lkh081231/screenshot-feedback-hook-mcp#path:/dsh-plugin
